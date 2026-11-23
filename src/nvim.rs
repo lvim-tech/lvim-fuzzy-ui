@@ -27,6 +27,9 @@ pub struct Grid {
     pub h: usize,
     pub cells: Vec<Cell>,
     pub cursor: (usize, usize),
+    /// What the preview shows of the file, told by Neovim (`lvfz_view`): the first and the last line in the window, and the lines the buffer has —
+    /// for the scrollbar the finder draws. (0, 0, 0) until Neovim has said.
+    pub view: (usize, usize, usize),
     pub hl: HashMap<u64, Style>,
     pub default_fg: Option<Color>,
     pub default_bg: Option<Color>,
@@ -303,12 +306,19 @@ impl Nvim {
         // plugin only the target is opened.
         const CODE: &str = r#"
 local path, line, col, text, query = ...
+-- where the window is in the buffer, told to the finder (its scrollbar): now, and when the window scrolls
+local function view()
+  pcall(vim.rpcnotify, 0, "lvfz_view", vim.fn.line("w0"), vim.fn.line("w$"), vim.fn.line("$"))
+end
+vim.api.nvim_create_augroup("lvim_fuzzy_view", { clear = true })
+vim.api.nvim_create_autocmd({ "WinScrolled", "CursorMoved", "BufWinEnter" }, { group = "lvim_fuzzy_view", callback = view })
 local ok, pv = pcall(require, "lvim-fuzzy.preview")
 if ok and type(pv) == "table" and pv.show then
   pv.show({ path = path, line = line, col = col, text = text, query = query })
   -- paint now: Neovim redraws only when it is idle, and a held key sends the next
   -- open the moment this one is answered — it was never idle, the preview froze
   pcall(vim.cmd, "redraw")
+  view()
   return
 end
 local prev = vim.api.nvim_get_current_buf()
@@ -336,6 +346,7 @@ else
   pcall(vim.api.nvim_win_set_cursor, 0, { 1, 0 })
 end
 pcall(vim.cmd, "redraw")
+view()
 "#;
         let params = Value::Array(vec![
             s(CODE),
@@ -402,6 +413,15 @@ fn handle(msg: &Value, grid: &Arc<Mutex<Grid>>, wake: &Sender<()>) {
     let Some(arr) = msg.as_array() else { return };
     // notification: [2, method, params]
     if arr.first().and_then(Value::as_u64) != Some(2) {
+        return;
+    }
+    // Neovim's own notification: the window's place in the buffer (for the finder's scrollbar)
+    if arr.get(1).and_then(Value::as_str) == Some("lvfz_view") {
+        if let Some(p) = arr.get(2).and_then(Value::as_array) {
+            let n = |i: usize| p.get(i).and_then(Value::as_u64).unwrap_or(0) as usize;
+            grid.lock().unwrap().view = (n(0), n(1), n(2));
+            let _ = wake.send(());
+        }
         return;
     }
     if arr.get(1).and_then(Value::as_str) != Some("redraw") {

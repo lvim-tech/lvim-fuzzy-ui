@@ -512,6 +512,10 @@ pub struct Look {
     pub preview_focus: Style,
     pub line_nr: Style,
     pub cursor_line: Style,
+    /// The thumb of the list's scrollbar and of the preview's: each a role of the theme (`scrollbar`, `preview_scrollbar`), the theme's blue when it
+    /// has none.
+    pub scrollbar: Style,
+    pub preview_scrollbar: Style,
     pub theme: Theme,
 }
 
@@ -520,6 +524,9 @@ impl Look {
         // a role the theme lacks falls back to the terminal theme's (never fail on a theme)
         let term = Theme::terminal();
         let r = |n: &str| t.roles.get(n).copied().unwrap_or_else(|| term.role(n));
+        // a role the theme may leave out, that is then the theme's blue (a thumb of a scrollbar)
+        let blue = Style { fg: t.color("blue").or_else(|| term.color("blue")), ..Style::default() };
+        let bar = |n: &str| t.roles.get(n).copied().unwrap_or(blue);
         let panel = r("panel");
         // roles drawn on the panel take its background when they set none
         let on_panel = |s: Style| Style {
@@ -553,6 +560,8 @@ impl Look {
             preview_focus: r("preview_focus"),
             line_nr: on_panel(r("line_nr")),
             cursor_line: r("cursor_line"),
+            scrollbar: on_panel(bar("scrollbar")),
+            preview_scrollbar: on_panel(bar("preview_scrollbar")),
             panel,
             theme: t,
         }
