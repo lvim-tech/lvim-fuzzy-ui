@@ -408,6 +408,24 @@ pub fn image_id(path: &str, is_dir: bool) -> Option<u32> {
     Some(id)
 }
 
+/// The image id of a Material icon by its own id (`folder-error`), sending it the first time.
+pub fn image_named(icon: &str) -> Option<u32> {
+    let mut st = state().lock().unwrap();
+    if !st.on {
+        return None;
+    }
+    if let Some(&id) = st.sent.get(icon) {
+        return Some(id);
+    }
+    let svg = st.manifest.as_ref()?.svg_path(icon)?;
+    st.seq = st.seq % 0x3FFF + 1;
+    let id = st.base | st.seq;
+    let bytes = transmit(&svg, id, st.cell)?;
+    st.pending.extend(bytes);
+    st.sent.insert(icon.to_string(), id);
+    Some(id)
+}
+
 /// What to write to the terminal before the next frame (new images), then cleared.
 pub fn take_pending() -> Vec<u8> {
     std::mem::take(&mut state().lock().unwrap().pending)
