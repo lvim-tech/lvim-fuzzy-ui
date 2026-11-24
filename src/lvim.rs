@@ -701,3 +701,22 @@ count = { fg = "#5b7d7e" }
         assert!(Theme::list().contains(&"terminal".to_string()));
     }
 }
+
+/// The field of a search prompt: a tint of the badge's own background, paler than it.
+pub fn search_field(l: &Look) -> Style {
+    // (half way back to the field's own tint: paler than the badge)
+    let bg = match (l.prompt.bg, l.input.bg) {
+        (Some(p), Some(i)) => Some(blend(p, i, 0.5)),
+        (p, i) => p.or(i),
+    };
+    Style { bg, ..l.input }
+}
+
+/// The badge of a search prompt (the magnifier): its background a little brighter than the field's.
+pub fn search_badge_style(l: &Look) -> Style {
+    let bg = match (l.prompt.fg, l.prompt.bg) {
+        (Some(fg), Some(bg)) => Some(blend(fg, bg, 0.18)),
+        (_, bg) => bg,
+    };
+    Style { bg, ..l.prompt }
+}

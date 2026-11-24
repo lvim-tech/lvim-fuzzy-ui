@@ -188,6 +188,27 @@ impl Canvas {
         x + 2
     }
 
+    /// The search badge of a prompt: the magnifier (the Nerd glyph's own drawing) as an image, in the colour of the badge's text
+    /// (a space on each side, on the badge's own style) where the terminal shows images, else the Nerd glyph. Returns the x after it.
+    pub fn put_search_badge(&mut self, x: u16, y: u16, st: Style, max_x: u16) -> u16 {
+        const LENS: &str = "M834 278Q982 278 1110 352Q1238 426 1312 554Q1386 682 1386 834Q1386 1038 1254 1194L1278 1218H1346L1770 1642L1642 1770L1218 1346V1278L1194 1254Q1038 1386 834 1386Q682 1386 554 1312Q426 1238 352 1110Q278 982 278 832Q278 682 352 554Q426 426 554 352Q682 278 834 278ZM834 450Q674 450 562 562Q450 674 450 834Q450 994 562 1106Q674 1218 834 1218Q994 1218 1106 1106Q1218 994 1218 834Q1218 674 1106 562Q994 450 834 450Z";
+        let hex = match st.fg {
+            Some(Color::Rgb { r, g, b }) => format!("{r:02x}{g:02x}{b:02x}"),
+            _ => "ffffff".to_string(),
+        };
+        let svg = format!(
+            "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 2048 2048\"><path fill=\"#{hex}\" d=\"{LENS}\"/></svg>"
+        );
+        if let Some(id) = crate::iconimg::image_svg(&format!("search-lens-{hex}"), &svg)
+            && x + 4 <= max_x.min(self.w)
+        {
+            let x = self.put(x, y, " ", st, max_x);
+            let x = self.put_image_icon(x, y, id, st.bg, max_x);
+            return self.put(x, y, " ", st, max_x);
+        }
+        self.put(x, y, " \u{f002} ", st, max_x)
+    }
+
     /// Placeholder cells of kitty image `id` (placed virtually over `cols` × `rows` cells) at (x, y),
     /// clipped to the canvas.
     pub fn put_image(&mut self, x: u16, y: u16, cols: u16, rows: u16, id: u32) {

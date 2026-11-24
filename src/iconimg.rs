@@ -426,6 +426,26 @@ pub fn image_named(icon: &str) -> Option<u32> {
     Some(id)
 }
 
+/// The image id of an SVG given as text (a UI glyph's drawing, filled in the colour it is drawn in), sent the first time under
+/// `key`. The text goes to a small file in the temp folder: the rasteriser reads files.
+pub fn image_svg(key: &str, svg: &str) -> Option<u32> {
+    let mut st = state().lock().unwrap();
+    if !st.on {
+        return None;
+    }
+    if let Some(&id) = st.sent.get(key) {
+        return Some(id);
+    }
+    let file = std::env::temp_dir().join(format!("lvim-fuzzy-{}.svg", key.replace(|c: char| !c.is_ascii_alphanumeric(), "_")));
+    std::fs::write(&file, svg).ok()?;
+    st.seq = st.seq % 0x3FFF + 1;
+    let id = st.base | st.seq;
+    let bytes = transmit(&file, id, st.cell)?;
+    st.pending.extend(bytes);
+    st.sent.insert(key.to_string(), id);
+    Some(id)
+}
+
 /// What to write to the terminal before the next frame (new images), then cleared.
 pub fn take_pending() -> Vec<u8> {
     std::mem::take(&mut state().lock().unwrap().pending)
