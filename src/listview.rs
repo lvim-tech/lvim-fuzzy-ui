@@ -15,6 +15,28 @@ pub fn tint(l: &Look, name: &str, fallback: Style, bg: Option<crossterm::style::
     Style { fg: l.theme.color(name).or(fallback.fg), bg, ..fallback }
 }
 
+/// How old a time is, as a colour name: today green, this week teal, this month blue, this year purple, older dim.
+pub fn age_colour(t: i64) -> &'static str {
+    let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs() as i64).unwrap_or(0);
+    match now - t {
+        d if d < 86_400 => "green",
+        d if d < 7 * 86_400 => "teal",
+        d if d < 31 * 86_400 => "blue",
+        d if d < 365 * 86_400 => "purple",
+        _ => "comment",
+    }
+}
+
+/// The colour name of a human size (`12K`, `3M`, …): kilobytes green, megabytes yellow, gigabytes and more red, the rest dim.
+pub fn size_colour(human: &str) -> &'static str {
+    match human.chars().last() {
+        Some('K') => "green",
+        Some('M') => "yellow",
+        Some('G') | Some('T') => "red",
+        _ => "comment",
+    }
+}
+
 /// The entries of a directory as a panel draws them — an icon, the name in its colour, the size and the date on
 /// the right. `entries` without the `..` row.
 pub fn draw_dir(cv: &mut Canvas, l: &Look, inner: Rect, entries: &[&Entry], offset: &mut usize) -> usize {
@@ -34,9 +56,17 @@ pub fn draw_dir(cv: &mut Canvas, l: &Look, inner: Rect, entries: &[&Entry], offs
         let y = inner.y + row as u16;
         let base = l.rows[(*offset + row) % 2];
         cv.fill(Rect { x: inner.x, y, w: inner.w, h: 1 }, base);
-        let size = if e.is_dir() { "DIR".to_string() } else { human_size(e.size) };
-        let right = format!(" {size:>6}  {} ", date_string(e.mtime));
-        let rw = str_width(&right) as u16;
+        // the columns right of the name, each in its colour as in the panels: the kind or the size, then the date by its age
+        let (size, size_col) = if e.is_dir() {
+            ("DIR".to_string(), "blue")
+        } else {
+            let h = human_size(e.size);
+            let c = size_colour(&h);
+            (h, c)
+        };
+        let size_txt = format!(" {size:>6}");
+        let date_txt = format!("  {} ", date_string(e.mtime));
+        let rw = (str_width(&size_txt) + str_width(&date_txt)) as u16;
         let name_lim = lim.saturating_sub(rw).max(inner.x);
         let mut x = cv.put(inner.x, y, " ", base, name_lim);
         if let Some(id) = crate::iconimg::image_id(&e.name, e.is_dir()) {
@@ -64,7 +94,8 @@ pub fn draw_dir(cv: &mut Canvas, l: &Look, inner: Rect, entries: &[&Entry], offs
             name.push('/');
         }
         cv.put(x, y, &name, ns, name_lim);
-        cv.put(lim - rw, y, &right, Style { fg: l.count.fg, bg: base.bg, ..base }, lim);
+        let sx = cv.put(lim - rw, y, &size_txt, tint(l, size_col, base, base.bg), lim);
+        cv.put(sx, y, &date_txt, tint(l, age_colour(e.mtime), base, base.bg), lim);
     }
     entries.len()
 }
