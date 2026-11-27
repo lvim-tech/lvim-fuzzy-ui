@@ -303,6 +303,15 @@ fn cell_size_ioctl() -> Option<(u32, u32)> {
     ))
 }
 
+/// The cell size a host hands over in `$LVIM_FUZZY_CELL` (`WIDTHxHEIGHT` pixels): a terminal that reports no pixel size and
+/// answers no query (Neovim's) while its host knows the real one.
+fn cell_size_env() -> Option<(u32, u32)> {
+    let v = std::env::var("LVIM_FUZZY_CELL").ok()?;
+    let (w, h) = v.split_once('x')?;
+    let (w, h): (u32, u32) = (w.trim().parse().ok()?, h.trim().parse().ok()?);
+    (w > 0 && h > 0).then_some((w, h))
+}
+
 /// The cell size by asking the terminal (`CSI 16 t` → `CSI 6;h;w t`), for when the ioctl has no pixels
 /// (a multiplexer). Only in raw mode, before anything else reads the terminal.
 fn cell_size_query() -> Option<(u32, u32)> {
@@ -354,7 +363,7 @@ pub fn init(mode: Mode, zellij: bool) -> bool {
     let Some(manifest) = material_dirs().iter().find_map(|d| Manifest::load(d)) else {
         return false;
     };
-    let Some(cell) = cell_size_ioctl().or_else(cell_size_query) else {
+    let Some(cell) = cell_size_ioctl().or_else(cell_size_env).or_else(cell_size_query) else {
         return false;
     };
     st.cell = cell;

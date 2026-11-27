@@ -284,15 +284,27 @@ impl Drawer {
             }
         } else {
             forget_shown(&mut self.shown);
-            // half blocks: the picture sampled down to what is left (nearest pixel)
+            // half blocks: the picture averaged down to what is left (each cell takes the mean of the source pixels it covers,
+            // so thin lines and edges stay smooth instead of being picked out by nearest-pixel sampling)
             let f = ((area.h as f32 * 2.0) / h as f32).min(area.w as f32 / w as f32).min(1.0);
             let (tw, th) = (((w as f32 * f) as u32).max(1), ((h as f32 * f) as u32).max(1));
             let mut out = Vec::with_capacity((tw * th * 4) as usize);
             for y in 0..th {
+                let (y0, y1) = ((y * h / th).min(h - 1), (((y + 1) * h).div_ceil(th)).clamp(y * h / th + 1, h));
                 for x in 0..tw {
-                    let (sx, sy) = ((x as f32 / f) as u32, (y as f32 / f) as u32);
-                    let i = ((sy.min(h - 1) * w + sx.min(w - 1)) * 4) as usize;
-                    out.extend_from_slice(&px[i..i + 4]);
+                    let (x0, x1) = ((x * w / tw).min(w - 1), (((x + 1) * w).div_ceil(tw)).clamp(x * w / tw + 1, w));
+                    let (mut acc, mut n) = ([0u32; 4], 0u32);
+                    for sy in y0..y1 {
+                        for sx in x0..x1 {
+                            let i = ((sy * w + sx) * 4) as usize;
+                            for c in 0..4 {
+                                acc[c] += px[i + c] as u32;
+                            }
+                            n += 1;
+                        }
+                    }
+                    let n = n.max(1);
+                    out.extend_from_slice(&[(acc[0] / n) as u8, (acc[1] / n) as u8, (acc[2] / n) as u8, (acc[3] / n) as u8]);
                 }
             }
             cv.put_halfblocks(area.x + area.w.saturating_sub(tw as u16) / 2, area.y, &out, tw, th);

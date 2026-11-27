@@ -712,11 +712,7 @@ pub fn search_field(l: &Look) -> Style {
     Style { bg, ..l.input }
 }
 
-/// The badge of a search prompt (the magnifier): its background a little brighter than the field's.
+/// The badge of a search prompt (the magnifier): on the field's own background — the bar is one tone, the magnifier only differs by its colour.
 pub fn search_badge_style(l: &Look) -> Style {
-    let bg = match (l.prompt.fg, l.prompt.bg) {
-        (Some(fg), Some(bg)) => Some(blend(fg, bg, 0.18)),
-        (_, bg) => bg,
-    };
-    Style { bg, ..l.prompt }
+    Style { bg: search_field(l).bg, ..l.prompt }
 }
