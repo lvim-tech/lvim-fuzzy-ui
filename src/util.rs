@@ -31,7 +31,11 @@ pub fn scratch() -> std::path::PathBuf {
         let mut base = crate::pool::dir();
         // a base that is not ours (made by someone else, a link) is not used: a directory with a name nobody can guess is made instead
         if private_dir(&base).is_err() {
-            let unique = format!("lvim-fuzzy-{}-{:x}", std::process::id(), std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_nanos()));
+            let unique = format!(
+                "lvim-fuzzy-{}-{:x}",
+                std::process::id(),
+                std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_nanos())
+            );
             base = std::env::temp_dir().join(unique);
             let _ = private_dir(&base);
         }

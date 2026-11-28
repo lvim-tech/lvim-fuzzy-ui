@@ -43,17 +43,7 @@ impl Entry {
 
     /// The `..` row: the parent directory.
     pub fn parent() -> Entry {
-        Entry {
-            name: "..".into(),
-            kind: Kind::Dir,
-            size: 0,
-            mtime: 0,
-            mode: 0o40755,
-            uid: 0,
-            gid: 0,
-            target: None,
-            broken: false,
-        }
+        Entry { name: "..".into(), kind: Kind::Dir, size: 0, mtime: 0, mode: 0o40755, uid: 0, gid: 0, target: None, broken: false }
     }
 
     pub fn is_parent(&self) -> bool {
@@ -94,9 +84,7 @@ pub fn entry(path: &Path, name: String) -> Option<Entry> {
     let md = std::fs::symlink_metadata(path).ok()?;
     let ft = md.file_type();
     let (kind, target, broken, size) = if ft.is_symlink() {
-        let target = std::fs::read_link(path)
-            .ok()
-            .map(|t| t.to_string_lossy().into_owned());
+        let target = std::fs::read_link(path).ok().map(|t| t.to_string_lossy().into_owned());
         match std::fs::metadata(path) {
             Ok(t) if t.is_dir() => (Kind::LinkDir, target, false, md.len()),
             Ok(t) => (Kind::Link, target, false, t.len()),
@@ -109,17 +97,7 @@ pub fn entry(path: &Path, name: String) -> Option<Entry> {
     } else {
         (Kind::Other, None, false, md.len())
     };
-    Some(Entry {
-        name,
-        kind,
-        size,
-        mtime: md.mtime(),
-        mode: md.permissions().mode(),
-        uid: md.uid(),
-        gid: md.gid(),
-        target,
-        broken,
-    })
+    Some(Entry { name, kind, size, mtime: md.mtime(), mode: md.permissions().mode(), uid: md.uid(), gid: md.gid(), target, broken })
 }
 
 /// The entries of `dir`: directories first, then by `sort`; hidden ones only with `hidden`. The
@@ -149,9 +127,7 @@ pub fn sort_entries(v: &mut [Entry], sort: Sort, reverse: bool) {
         }
         let o = match sort {
             Sort::Name => natural_cmp(&a.name, &b.name),
-            Sort::Ext => ext(&a.name)
-                .cmp(ext(&b.name))
-                .then_with(|| natural_cmp(&a.name, &b.name)),
+            Sort::Ext => ext(&a.name).cmp(ext(&b.name)).then_with(|| natural_cmp(&a.name, &b.name)),
             Sort::Size => b.size.cmp(&a.size).then_with(|| natural_cmp(&a.name, &b.name)),
             Sort::Time => b.mtime.cmp(&a.mtime).then_with(|| natural_cmp(&a.name, &b.name)),
         };
@@ -215,13 +191,8 @@ pub fn human_size(n: u64) -> String {
         v /= 1024.0;
         u += 1;
     }
-    if v < 10.0 {
-        format!("{v:.1}{}", UNITS[u])
-    } else {
-        format!("{v:.0}{}", UNITS[u])
-    }
+    if v < 10.0 { format!("{v:.1}{}", UNITS[u]) } else { format!("{v:.0}{}", UNITS[u]) }
 }
-
 
 /// Local time of `t` (seconds since the epoch) as (year, month, day, hour, minute, second).
 pub fn local_time(t: i64) -> (i32, u32, u32, u32, u32, u32) {
@@ -230,14 +201,7 @@ pub fn local_time(t: i64) -> (i32, u32, u32, u32, u32, u32) {
         let tt: libc::time_t = t as libc::time_t;
         let mut tm: libc::tm = std::mem::zeroed();
         libc::localtime_r(&tt, &mut tm);
-        (
-            tm.tm_year + 1900,
-            (tm.tm_mon + 1) as u32,
-            tm.tm_mday as u32,
-            tm.tm_hour as u32,
-            tm.tm_min as u32,
-            tm.tm_sec as u32,
-        )
+        (tm.tm_year + 1900, (tm.tm_mon + 1) as u32, tm.tm_mday as u32, tm.tm_hour as u32, tm.tm_min as u32, tm.tm_sec as u32)
     }
 }
 
@@ -246,4 +210,3 @@ pub fn date_string(t: i64) -> String {
     let (y, mo, d, h, mi, _) = local_time(t);
     format!("{y:04}-{mo:02}-{d:02} {h:02}:{mi:02}")
 }
-

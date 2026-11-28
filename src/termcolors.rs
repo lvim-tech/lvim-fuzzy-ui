@@ -27,11 +27,7 @@ fn parse_rgb(s: &str) -> Option<Color> {
         let max = (1u32 << (4 * h.len() as u32)) - 1;
         Some(((v * 255 + max / 2) / max) as u8)
     };
-    Some(Color::Rgb {
-        r: ch()?,
-        g: ch()?,
-        b: ch()?,
-    })
+    Some(Color::Rgb { r: ch()?, g: ch()?, b: ch()? })
 }
 
 /// Pull the OSC replies out of what the terminal sent back.
@@ -48,10 +44,8 @@ fn parse_replies(data: &str) -> (Option<Color>, Option<Color>, [Option<Color>; 1
             Some("10") => fg = parts.next().and_then(parse_rgb),
             Some("11") => bg = parts.next().and_then(parse_rgb),
             Some("4") => {
-                if let (Some(n), Some(c)) = (
-                    parts.next().and_then(|n| n.parse::<usize>().ok()),
-                    parts.next(),
-                ) && n < 16
+                if let (Some(n), Some(c)) = (parts.next().and_then(|n| n.parse::<usize>().ok()), parts.next())
+                    && n < 16
                 {
                     pal[n] = parse_rgb(c);
                 }
@@ -65,11 +59,7 @@ fn parse_replies(data: &str) -> (Option<Color>, Option<Color>, [Option<Color>; 1
 /// Query /dev/tty (raw mode is switched on for the exchange and restored).
 /// None when the terminal does not answer the fg/bg queries.
 pub fn query() -> Option<TermColors> {
-    let mut tty = std::fs::OpenOptions::new()
-        .read(true)
-        .write(true)
-        .open("/dev/tty")
-        .ok()?;
+    let mut tty = std::fs::OpenOptions::new().read(true).write(true).open("/dev/tty").ok()?;
     let was_raw = crossterm::terminal::is_raw_mode_enabled().unwrap_or(false);
     if !was_raw {
         crossterm::terminal::enable_raw_mode().ok()?;
@@ -79,10 +69,7 @@ pub fn query() -> Option<TermColors> {
         q.push_str(&format!("\x1b]4;{n};?\x07"));
     }
     q.push_str("\x1b[c"); // DA1: the sentinel
-    let ok = tty
-        .write_all(q.as_bytes())
-        .and_then(|_| tty.flush())
-        .is_ok();
+    let ok = tty.write_all(q.as_bytes()).and_then(|_| tty.flush()).is_ok();
     let mut data = Vec::new();
     if ok {
         let fd = tty.as_raw_fd();
@@ -93,11 +80,7 @@ pub fn query() -> Option<TermColors> {
             if left.is_zero() {
                 break;
             }
-            let mut pfd = libc::pollfd {
-                fd,
-                events: libc::POLLIN,
-                revents: 0,
-            };
+            let mut pfd = libc::pollfd { fd, events: libc::POLLIN, revents: 0 };
             // SAFETY: one valid pollfd for the open tty, a bounded timeout.
             let r = unsafe { libc::poll(&mut pfd, 1, left.as_millis() as i32) };
             if r <= 0 {
@@ -119,11 +102,7 @@ pub fn query() -> Option<TermColors> {
         let _ = crossterm::terminal::disable_raw_mode();
     }
     let (fg, bg, palette) = parse_replies(&String::from_utf8_lossy(&data));
-    Some(TermColors {
-        fg: fg?,
-        bg: bg?,
-        palette,
-    })
+    Some(TermColors { fg: fg?, bg: bg?, palette })
 }
 
 #[cfg(test)]
@@ -134,38 +113,10 @@ mod tests {
     fn parses_osc_replies() {
         let data = "\x1b]10;rgb:5e5e/8888/8888\x07\x1b]11;rgb:2020/2727/2b2b\x1b\\\x1b]4;4;rgb:44/7c/a2\x07\x1b[?62;c";
         let (fg, bg, pal) = parse_replies(data);
-        assert_eq!(
-            fg,
-            Some(Color::Rgb {
-                r: 0x5e,
-                g: 0x88,
-                b: 0x88
-            })
-        );
-        assert_eq!(
-            bg,
-            Some(Color::Rgb {
-                r: 0x20,
-                g: 0x27,
-                b: 0x2b
-            })
-        );
-        assert_eq!(
-            pal[4],
-            Some(Color::Rgb {
-                r: 0x44,
-                g: 0x7c,
-                b: 0xa2
-            })
-        );
+        assert_eq!(fg, Some(Color::Rgb { r: 0x5e, g: 0x88, b: 0x88 }));
+        assert_eq!(bg, Some(Color::Rgb { r: 0x20, g: 0x27, b: 0x2b }));
+        assert_eq!(pal[4], Some(Color::Rgb { r: 0x44, g: 0x7c, b: 0xa2 }));
         assert_eq!(pal[0], None);
-        assert_eq!(
-            parse_rgb("rgb:f/0/8"),
-            Some(Color::Rgb {
-                r: 255,
-                g: 0,
-                b: 136
-            })
-        );
+        assert_eq!(parse_rgb("rgb:f/0/8"), Some(Color::Rgb { r: 255, g: 0, b: 136 }));
     }
 }

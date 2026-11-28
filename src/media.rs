@@ -28,22 +28,13 @@ pub enum Kind {
 /// The extensions of each kind: the ONE list — `kind_of` here, and the preview plugin's default `[config.types.*]`
 /// groups are made from it.
 pub const EXTENSIONS: &[(Kind, &[&str])] = &[
-    (
-        Kind::Image,
-        &[
-            "png", "jpg", "jpeg", "gif", "webp", "bmp", "tif", "tiff", "ico", "avif", "heic", "heif", "jxl", "pnm", "ppm", "pgm",
-            "pbm", "tga", "qoi",
-        ],
-    ),
+    (Kind::Image, &["png", "jpg", "jpeg", "gif", "webp", "bmp", "tif", "tiff", "ico", "avif", "heic", "heif", "jxl", "pnm", "ppm", "pgm", "pbm", "tga", "qoi"]),
     (Kind::Svg, &["svg", "svgz"]),
     (Kind::Video, &["mp4", "mkv", "webm", "mov", "avi", "m4v", "wmv", "flv", "mpg", "mpeg", "ts", "3gp", "ogv"]),
     (Kind::Pdf, &["pdf"]),
     (Kind::Font, &["ttf", "otf", "woff", "woff2", "ttc", "pfb"]),
     (Kind::Audio, &["mp3", "flac", "ogg", "opus", "m4a", "wav", "aac", "wma", "alac", "aiff", "ape"]),
-    (
-        Kind::Document,
-        &["docx", "doc", "odt", "rtf", "xlsx", "xls", "ods", "pptx", "ppt", "odp", "fodt", "docm", "xlsm"],
-    ),
+    (Kind::Document, &["docx", "doc", "odt", "rtf", "xlsx", "xls", "ods", "pptx", "ppt", "odp", "fodt", "docm", "xlsm"]),
 ];
 
 /// The name of a kind (the JSON of `lvim-fuzzy-cli preview`).
@@ -108,13 +99,7 @@ fn output(prog: &str, args: &[&str]) -> Option<String> {
 }
 
 fn run(prog: &str, args: &[&str]) -> bool {
-    Command::new(prog)
-        .args(args)
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .status()
-        .is_ok_and(|s| s.success())
+    Command::new(prog).args(args).stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null()).status().is_ok_and(|s| s.success())
 }
 
 /// A temporary file for a program's picture, removed when dropped.
@@ -230,10 +215,7 @@ fn probe(path: &str) -> Vec<(String, String)> {
                         (f > 0.0).then(|| format!("  ·  {f:.2} fps"))
                     })
                     .unwrap_or_default();
-                lines.push((
-                    "video".into(),
-                    format!("{codec}  ·  {} × {}{fps}", n(st, "width").unwrap_or(0), n(st, "height").unwrap_or(0)),
-                ));
+                lines.push(("video".into(), format!("{codec}  ·  {} × {}{fps}", n(st, "width").unwrap_or(0), n(st, "height").unwrap_or(0))));
             }
             Some("audio") => {
                 let hz = n(st, "sample_rate").map(|r| format!("  ·  {r} Hz")).unwrap_or_default();
@@ -255,14 +237,7 @@ fn probe(path: &str) -> Vec<(String, String)> {
 }
 
 /// The first page of a PDF as a picture, and its pdfinfo lines.
-fn pdf_page(
-    pdf: &str,
-    page: u32,
-    max: (u32, u32),
-    big: (u32, u32),
-    info: &mut Vec<(String, String)>,
-    pages: &mut u32,
-) -> Option<(Vec<u8>, u32, u32)> {
+fn pdf_page(pdf: &str, page: u32, max: (u32, u32), big: (u32, u32), info: &mut Vec<(String, String)>, pages: &mut u32) -> Option<(Vec<u8>, u32, u32)> {
     if have("pdfinfo")
         && let Some(out) = output("pdfinfo", &[pdf])
     {
@@ -288,10 +263,7 @@ fn pdf_page(
     let stem = t.0.with_extension("");
     let pg = page.to_string();
     let ok = have("pdftoppm")
-        && run(
-            "pdftoppm",
-            &["-png", "-f", &pg, "-l", &pg, "-singlefile", "-scale-to", &big.0.max(big.1).to_string(), pdf, &stem.to_string_lossy()],
-        );
+        && run("pdftoppm", &["-png", "-f", &pg, "-l", &pg, "-singlefile", "-scale-to", &big.0.max(big.1).to_string(), pdf, &stem.to_string_lossy()]);
     if ok { decode(&t.0, max).map(|(px, w, h, _)| (px, w, h)) } else { None }
 }
 
@@ -312,15 +284,7 @@ fn office_pdf(path: &Path) -> Option<(std::path::PathBuf, Temp)> {
     let profile = crate::util::scratch().join("soffice");
     let ok = run(
         prog,
-        &[
-            &format!("-env:UserInstallation=file://{}", profile.display()),
-            "--headless",
-            "--convert-to",
-            "pdf",
-            "--outdir",
-            &out.s(),
-            &path.to_string_lossy(),
-        ],
+        &[&format!("-env:UserInstallation=file://{}", profile.display()), "--headless", "--convert-to", "pdf", "--outdir", &out.s(), &path.to_string_lossy()],
     );
     let pdf = out.0.join(path.file_stem()?).with_extension("pdf");
     if !(ok && pdf.is_file()) {
@@ -452,12 +416,7 @@ fn load_cached(path: &Path, kind: Kind, max: (u32, u32), skip: u32) -> Media {
         && let Ok(text) = std::fs::read_to_string(meta)
         && let Ok(j) = serde_json::from_str::<serde_json::Value>(&text)
     {
-        let info = j["info"]
-            .as_array()
-            .into_iter()
-            .flatten()
-            .filter_map(|p| Some((p[0].as_str()?.to_string(), p[1].as_str()?.to_string())))
-            .collect();
+        let info = j["info"].as_array().into_iter().flatten().filter_map(|p| Some((p[0].as_str()?.to_string(), p[1].as_str()?.to_string()))).collect();
         let positions = j["positions"].as_u64().unwrap_or(1) as u32;
         let picture = png.as_ref().filter(|p| p.is_file()).and_then(|p| decode(p, max)).map(|(px, w, h, _)| (px, w, h));
         return Media { picture, info, positions, missing: Vec::new() };
@@ -487,9 +446,7 @@ fn compute(path: &Path, kind: Kind, max: (u32, u32), skip: u32) -> Media {
                 // a format the crate does not decode (HEIC, AVIF, JXL...): through ImageMagick
                 let t = Temp::new("png");
                 let geo = format!("{}x{}>", max.0, max.1);
-                (have("magick") && run("magick", &[&format!("{ps}[0]"), "-resize", &geo, &t.s()]))
-                    .then(|| decode(&t.0, max))
-                    .flatten()
+                (have("magick") && run("magick", &[&format!("{ps}[0]"), "-resize", &geo, &t.s()])).then(|| decode(&t.0, max)).flatten()
             });
             if let Some((_, _, _, (ow, oh))) = &d {
                 let fmt = path.extension().map(|e| e.to_string_lossy().to_uppercase()).unwrap_or_default();
@@ -516,10 +473,7 @@ fn compute(path: &Path, kind: Kind, max: (u32, u32), skip: u32) -> Media {
             info.insert(0, ("position".into(), pct.clone()));
             let ok = (have("ffmpegthumbnailer") && run("ffmpegthumbnailer", &["-i", &ps, "-o", &t.s(), "-s", &side, "-t", &pct]))
                 || (have("ffmpeg")
-                    && run(
-                        "ffmpeg",
-                        &["-v", "error", "-y", "-ss", "3", "-i", &ps, "-frames:v", "1", "-vf", &format!("scale={}:-1", big.0), &t.s()],
-                    ));
+                    && run("ffmpeg", &["-v", "error", "-y", "-ss", "3", "-i", &ps, "-frames:v", "1", "-vf", &format!("scale={}:-1", big.0), &t.s()]));
             if ok { decode(&t.0, max).map(|(px, w, h, _)| (px, w, h)) } else { None }
         }
         Kind::Audio => {
@@ -624,9 +578,7 @@ pub fn transmit(id: u32, rgba: &[u8], w: u32, h: u32, cols: u16, rows: u16) -> V
     for (i, c) in chunks.iter().enumerate() {
         let more = if i + 1 < chunks.len() { 1 } else { 0 };
         if i == 0 {
-            out.extend_from_slice(
-                format!("\x1b_Ga=T,U=1,i={id},c={cols},r={rows},t=d,f={fmt}{o},s={w},v={h},m={more},q=2;").as_bytes(),
-            );
+            out.extend_from_slice(format!("\x1b_Ga=T,U=1,i={id},c={cols},r={rows},t=d,f={fmt}{o},s={w},v={h},m={more},q=2;").as_bytes());
         } else {
             out.extend_from_slice(format!("\x1b_Gm={more},q=2;").as_bytes());
         }

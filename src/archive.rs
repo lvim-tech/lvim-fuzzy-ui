@@ -54,9 +54,34 @@ pub fn format(name: &str) -> Option<Format> {
 pub fn stem(name: &str) -> String {
     let lower = name.to_ascii_lowercase();
     for e in [
-        ".tar.gz", ".tar.xz", ".tar.bz2", ".tar.zst", ".tgz", ".txz", ".tbz2", ".tbz", ".tzst", ".tar", ".zip",
-        ".jar", ".apk", ".epub", ".7z", ".rar", ".deb", ".rpm", ".iso", ".cpio", ".cab", ".xar", ".pkg", ".tar.lz",
-        ".tlz", ".tar.lzma", ".lha", ".lzh",
+        ".tar.gz",
+        ".tar.xz",
+        ".tar.bz2",
+        ".tar.zst",
+        ".tgz",
+        ".txz",
+        ".tbz2",
+        ".tbz",
+        ".tzst",
+        ".tar",
+        ".zip",
+        ".jar",
+        ".apk",
+        ".epub",
+        ".7z",
+        ".rar",
+        ".deb",
+        ".rpm",
+        ".iso",
+        ".cpio",
+        ".cab",
+        ".xar",
+        ".pkg",
+        ".tar.lz",
+        ".tlz",
+        ".tar.lzma",
+        ".lha",
+        ".lzh",
     ] {
         if lower.ends_with(e) {
             return name[..name.len() - e.len()].to_string();
@@ -64,7 +89,6 @@ pub fn stem(name: &str) -> String {
     }
     name.to_string()
 }
-
 
 /// Extract `archive` into `dest` (made first).
 pub fn extract_cmd(archive: &Path, dest: &Path) -> Option<Command> {
@@ -110,9 +134,7 @@ pub fn extract_cmd(archive: &Path, dest: &Path) -> Option<Command> {
 /// Pack `names` (relative to `dir`) into `out`; the format comes from `out`'s extension.
 pub fn compress_cmd(dir: &Path, names: &[String], out: &Path) -> Result<Command, String> {
     let fname = out.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
-    let f = format(&fname).ok_or_else(|| {
-        format!("{fname}: not an archive name (.tar.gz .tar.xz .tar.bz2 .tar.zst .tar .zip .7z)")
-    })?;
+    let f = format(&fname).ok_or_else(|| format!("{fname}: not an archive name (.tar.gz .tar.xz .tar.bz2 .tar.zst .tar .zip .7z)"))?;
     let mut c;
     match f {
         Format::Zip => {
@@ -275,12 +297,7 @@ mod tree_tests {
 
     #[test]
     fn builds_a_tree_dirs_first() {
-        let rows = build_tree(vec![
-            ("b.txt".into(), false, 3),
-            ("sub/inner.txt".into(), false, 2),
-            ("a/".into(), true, 0),
-            ("sub/deep/x".into(), false, 1),
-        ]);
+        let rows = build_tree(vec![("b.txt".into(), false, 3), ("sub/inner.txt".into(), false, 2), ("a/".into(), true, 0), ("sub/deep/x".into(), false, 1)]);
         let shown: Vec<(usize, &str)> = rows.iter().map(|r| (r.depth, r.name.as_str())).collect();
         assert_eq!(shown, vec![(0, "a"), (0, "sub"), (1, "deep"), (2, "x"), (1, "inner.txt"), (0, "b.txt")]);
     }

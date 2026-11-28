@@ -101,10 +101,8 @@ impl Loader {
                 }
                 let moved_on = || *w.lock().unwrap() != path;
                 // a parser failure: the text stays, without colours
-                let spans = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                    crate::syntax::highlight_file_until(&path, &v.lines, 5000, &moved_on)
-                }))
-                .unwrap_or(Some(Vec::new()));
+                let spans = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| crate::syntax::highlight_file_until(&path, &v.lines, 5000, &moved_on)))
+                    .unwrap_or(Some(Vec::new()));
                 if let Some(spans) = spans {
                     let done = View {
                         path: v.path.clone(),
@@ -151,16 +149,7 @@ impl Loader {
 
 fn read(path: &str) -> View {
     let mtime = std::fs::metadata(path).and_then(|m| m.modified()).ok();
-    let mut v = View {
-        path: path.to_string(),
-        lines: Vec::new(),
-        is_dir: false,
-        note: None,
-        truncated: false,
-        spans: Vec::new(),
-        highlighted: true,
-        mtime,
-    };
+    let mut v = View { path: path.to_string(), lines: Vec::new(), is_dir: false, note: None, truncated: false, spans: Vec::new(), highlighted: true, mtime };
     let p = Path::new(path);
     if p.is_dir() {
         v.is_dir = true;
@@ -232,9 +221,7 @@ mod hold_tests {
     fn a_held_key_shows_every_file() {
         let dir = std::env::temp_dir().join(format!("lvf-hold-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
-        let body: String = (0..5000)
-            .map(|i| format!("fn f{i}(x: u32) -> u32 {{ let y = x * {i}; if y > 3 {{ y }} else {{ x + 1 }} }}\n"))
-            .collect();
+        let body: String = (0..5000).map(|i| format!("fn f{i}(x: u32) -> u32 {{ let y = x * {i}; if y > 3 {{ y }} else {{ x + 1 }} }}\n")).collect();
         let paths: Vec<String> = (0..30)
             .map(|n| {
                 let p = dir.join(format!("f{n}.rs"));
@@ -250,17 +237,12 @@ mod hold_tests {
             let mut ok = false;
             for _ in 0..2 {
                 std::thread::sleep(std::time::Duration::from_millis(33));
-                ok |= loader
-                    .view(p)
-                    .is_some_and(|v| v.lines.first().is_some_and(|l| l.contains("//")));
+                ok |= loader.view(p).is_some_and(|v| v.lines.first().is_some_and(|l| l.contains("//")));
             }
             shown += ok as usize;
         }
         std::fs::remove_dir_all(&dir).ok();
-        eprintln!(
-            "held key: {shown} of {} files shown while current",
-            paths.len()
-        );
+        eprintln!("held key: {shown} of {} files shown while current", paths.len());
         assert!(shown >= paths.len() * 8 / 10, "{shown} of {}", paths.len());
     }
 }

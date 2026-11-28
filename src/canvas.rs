@@ -5,9 +5,7 @@
 
 use std::io::Write;
 
-use crossterm::style::{
-    Attribute, Attributes, Color, Print, SetAttribute, SetBackgroundColor, SetForegroundColor,
-};
+use crossterm::style::{Attribute, Attributes, Color, Print, SetAttribute, SetBackgroundColor, SetForegroundColor};
 use crossterm::{cursor, queue};
 use unicode_width::UnicodeWidthChar;
 
@@ -24,12 +22,7 @@ pub struct Cell {
 
 impl Default for Cell {
     fn default() -> Self {
-        Cell {
-            ch: " ".into(),
-            fg: None,
-            bg: None,
-            attrs: Attributes::default(),
-        }
+        Cell { ch: " ".into(), fg: None, bg: None, attrs: Attributes::default() }
     }
 }
 
@@ -75,13 +68,7 @@ pub fn truncate(s: &str, w: usize) -> String {
 
 impl Canvas {
     pub fn new(w: u16, h: u16) -> Canvas {
-        Canvas {
-            w,
-            h,
-            cells: vec![Cell::default(); w as usize * h as usize],
-            base_bg: None,
-            base_fg: None,
-        }
+        Canvas { w, h, cells: vec![Cell::default(); w as usize * h as usize], base_bg: None, base_fg: None }
     }
 
     /// Copy `other` onto this canvas with its top-left at (x, y).
@@ -89,19 +76,14 @@ impl Canvas {
         for oy in 0..other.h {
             for ox in 0..other.w {
                 if let Some(i) = self.idx(x + ox, y + oy) {
-                    self.cells[i] =
-                        other.cells[oy as usize * other.w as usize + ox as usize].clone();
+                    self.cells[i] = other.cells[oy as usize * other.w as usize + ox as usize].clone();
                 }
             }
         }
     }
 
     pub fn clear(&mut self) {
-        let c = Cell {
-            bg: self.base_bg,
-            fg: self.base_fg,
-            ..Cell::default()
-        };
+        let c = Cell { bg: self.base_bg, fg: self.base_fg, ..Cell::default() };
         for x in self.cells.iter_mut() {
             *x = c.clone();
         }
@@ -150,11 +132,7 @@ impl Canvas {
                 if style.bg.is_some() {
                     c.bg = style.bg;
                 }
-                c.attrs = if style.regular {
-                    Attributes::default()
-                } else {
-                    style.attrs
-                };
+                c.attrs = if style.regular { Attributes::default() } else { style.attrs };
             }
             if cw == 2
                 && let Some(i) = self.idx(cx + 1, y)
@@ -196,9 +174,7 @@ impl Canvas {
             Some(Color::Rgb { r, g, b }) => format!("{r:02x}{g:02x}{b:02x}"),
             _ => "ffffff".to_string(),
         };
-        let svg = format!(
-            "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 2048 2048\"><path fill=\"#{hex}\" d=\"{LENS}\"/></svg>"
-        );
+        let svg = format!("<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 2048 2048\"><path fill=\"#{hex}\" d=\"{LENS}\"/></svg>");
         if let Some(id) = crate::iconimg::image_svg(&format!("search-lens-{hex}"), &svg)
             && x + 4 <= max_x.min(self.w)
         {
@@ -316,12 +292,7 @@ impl Canvas {
 
     /// Write the cells that differ from `prev` (all of them when `prev` is
     /// None or has another size).
-    pub fn flush<W: Write>(
-        &self,
-        out: &mut W,
-        prev: Option<&Canvas>,
-        pos: &mut Positioner,
-    ) -> std::io::Result<()> {
+    pub fn flush<W: Write>(&self, out: &mut W, prev: Option<&Canvas>, pos: &mut Positioner) -> std::io::Result<()> {
         let full = prev.is_none_or(|p| p.w != self.w || p.h != self.h);
         let mut cur_fg: Option<Option<Color>> = None;
         let mut cur_bg: Option<Option<Color>> = None;

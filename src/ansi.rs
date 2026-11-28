@@ -31,10 +31,7 @@ pub fn parse(s: &str, mut style: Style) -> (String, Vec<Run>, Style) {
         } else if st == Style::default() {
             return;
         }
-        runs.push(Run {
-            start: at as u32,
-            style: st,
-        });
+        runs.push(Run { start: at as u32, style: st });
     };
     if style != Style::default() {
         runs.push(Run { start: 0, style });
@@ -116,14 +113,7 @@ fn basic(n: u16, bright: bool) -> Color {
 }
 
 fn apply_sgr(params: &str, st: &mut Style) {
-    let nums: Vec<u16> = if params.is_empty() {
-        vec![0]
-    } else {
-        params
-            .split([';', ':'])
-            .map(|p| p.parse().unwrap_or(0))
-            .collect()
-    };
+    let nums: Vec<u16> = if params.is_empty() { vec![0] } else { params.split([';', ':']).map(|p| p.parse().unwrap_or(0)).collect() };
     let mut k = 0;
     while k < nums.len() {
         let n = nums[k];
@@ -160,11 +150,7 @@ fn apply_sgr(params: &str, st: &mut Style) {
                     }
                     Some(2) => {
                         let c = match (nums.get(k + 2), nums.get(k + 3), nums.get(k + 4)) {
-                            (Some(&r), Some(&g), Some(&b)) => Some(Color::Rgb {
-                                r: r as u8,
-                                g: g as u8,
-                                b: b as u8,
-                            }),
+                            (Some(&r), Some(&g), Some(&b)) => Some(Color::Rgb { r: r as u8, g: g as u8, b: b as u8 }),
                             _ => None,
                         };
                         k += 4;
@@ -203,10 +189,7 @@ mod tests {
 
     #[test]
     fn strips_and_styles() {
-        let (t, r, _) = parse(
-            "\x1b[31mred\x1b[0m plain \x1b[1;38;5;208mx\x1b]0;title\x07y",
-            Style::default(),
-        );
+        let (t, r, _) = parse("\x1b[31mred\x1b[0m plain \x1b[1;38;5;208mx\x1b]0;title\x07y", Style::default());
         assert_eq!(t, "red plain xy");
         assert_eq!(style_at(&r, 0).fg, Some(Color::DarkRed));
         assert_eq!(style_at(&r, 4), Style::default());

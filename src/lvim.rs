@@ -15,8 +15,7 @@ use crate::theme::Style;
 /// The terminal's own colours, asked once (OSC 10/11/4) and cached. Only to be
 /// called before the finder reads the keyboard: the replies arrive as input.
 pub fn terminal_colors() -> Option<&'static crate::termcolors::TermColors> {
-    static ASKED: std::sync::OnceLock<Option<crate::termcolors::TermColors>> =
-        std::sync::OnceLock::new();
+    static ASKED: std::sync::OnceLock<Option<crate::termcolors::TermColors>> = std::sync::OnceLock::new();
     ASKED.get_or_init(crate::termcolors::query).as_ref()
 }
 
@@ -35,15 +34,7 @@ pub fn shade(bg: Color) -> Color {
         return bg;
     };
     let lum = 0.2126 * r as f64 + 0.7152 * g as f64 + 0.0722 * b as f64;
-    let toward = if lum < 128.0 {
-        Color::Rgb {
-            r: 255,
-            g: 255,
-            b: 255,
-        }
-    } else {
-        Color::Rgb { r: 0, g: 0, b: 0 }
-    };
+    let toward = if lum < 128.0 { Color::Rgb { r: 255, g: 255, b: 255 } } else { Color::Rgb { r: 0, g: 0, b: 0 } };
     blend(toward, bg, 0.08)
 }
 
@@ -57,11 +48,7 @@ pub fn blend(fg: Color, bg: Color, a: f64) -> Color {
     let (fr, fgc, fb) = rgb(fg);
     let (br, bgc, bb) = rgb(bg);
     let mix = |x: f64, y: f64| (x * a + y * (1.0 - a) + 0.5).floor().clamp(0.0, 255.0) as u8;
-    Color::Rgb {
-        r: mix(fr, br),
-        g: mix(fgc, bgc),
-        b: mix(fb, bb),
-    }
+    Color::Rgb { r: mix(fr, br), g: mix(fgc, bgc), b: mix(fb, bb) }
 }
 
 /// The theme used when none is set: the terminal's own 16 colours, so the lvim
@@ -81,11 +68,7 @@ fn hex(s: &str) -> Option<Color> {
         return None;
     }
     let v = u32::from_str_radix(h, 16).ok()?;
-    Some(Color::Rgb {
-        r: (v >> 16) as u8,
-        g: (v >> 8) as u8,
-        b: v as u8,
-    })
+    Some(Color::Rgb { r: (v >> 16) as u8, g: (v >> 8) as u8, b: v as u8 })
 }
 
 /// A role: `{ fg = "#..", bg = "#..", bold = true, ... }`.
@@ -135,9 +118,7 @@ impl Theme {
         let cyan = rgb(p[6]).or(rgb(p[14])).unwrap_or(blue);
         // bright black is the dim text; some palettes make it (almost) the
         // background, which would hide the hints, ghosts and counts
-        let comment = rgb(p[8])
-            .filter(|c| contrast(*c, bg) >= 40.0)
-            .unwrap_or_else(|| blend(fg, bg, 0.6));
+        let comment = rgb(p[8]).filter(|c| contrast(*c, bg) >= 40.0).unwrap_or_else(|| blend(fg, bg, 0.6));
         let orange = rgb(p[11]).filter(|c| *c != yellow).unwrap_or(yellow);
         let t = |c: Color, a: f64| Some(blend(c, bg, a));
         let st = |fg: Color, bg: Option<Color>, bold: bool| {
@@ -145,12 +126,7 @@ impl Theme {
             if bold {
                 attrs.set(Attribute::Bold);
             }
-            Style {
-                fg: Some(fg),
-                bg,
-                attrs,
-                regular: false,
-            }
+            Style { fg: Some(fg), bg, attrs, regular: false }
         };
         let palette: HashMap<String, Color> = [
             ("bg", bg),
@@ -171,13 +147,7 @@ impl Theme {
         .collect();
         // tint scale: lvim-utils/lua/lvim-utils/config/ui.lua `tint`
         let roles: HashMap<String, Style> = [
-            (
-                "panel",
-                Style {
-                    fg: Some(fg),
-                    ..Style::default()
-                },
-            ),
+            ("panel", Style { fg: Some(fg), ..Style::default() }),
             ("row_odd", st(yellow, t(yellow, 0.05), false)),
             ("row_even", st(yellow, t(yellow, 0.08), false)),
             ("sel_odd", st(yellow, t(yellow, 0.15), true)),
@@ -204,47 +174,19 @@ impl Theme {
             ("help_desc_odd", st(blue, t(blue, 0.05), false)),
             ("help_key_even", st(yellow, t(yellow, 0.1), true)),
             ("help_desc_even", st(yellow, t(yellow, 0.05), false)),
-            (
-                "popup",
-                Style {
-                    fg: Some(fg),
-                    ..Style::default()
-                },
-            ),
+            ("popup", Style { fg: Some(fg), ..Style::default() }),
             ("popup_border", st(blue, None, false)),
-            (
-                "notify",
-                Style {
-                    fg: Some(fg),
-                    ..Style::default()
-                },
-            ),
+            ("notify", Style { fg: Some(fg), ..Style::default() }),
             ("preview_match", st(red, None, true)),
             ("preview_focus", st(blue, t(blue, 0.2), true)),
             ("line_nr", st(blend(fg, bg, 0.25), None, false)),
-            (
-                "cursor_line",
-                Style {
-                    bg: t(blue, 0.23),
-                    ..Style::default()
-                },
-            ),
-            (
-                "normal",
-                Style {
-                    fg: Some(fg),
-                    ..Style::default()
-                },
-            ),
+            ("cursor_line", Style { bg: t(blue, 0.23), ..Style::default() }),
+            ("normal", Style { fg: Some(fg), ..Style::default() }),
         ]
         .into_iter()
         .map(|(k, s)| (k.to_string(), s))
         .collect();
-        Some(Theme {
-            name: TERMINAL.to_string(),
-            palette,
-            roles,
-        })
+        Some(Theme { name: TERMINAL.to_string(), palette, roles })
     }
 
     /// The lvim layout in plain ANSI colours (0–15), for a terminal that does
@@ -256,12 +198,7 @@ impl Theme {
             if bold {
                 attrs.set(Attribute::Bold);
             }
-            Style {
-                fg,
-                bg,
-                attrs,
-                regular: false,
-            }
+            Style { fg, bg, attrs, regular: false }
         };
         let palette: HashMap<String, Color> = [
             ("fg", Reset),
@@ -321,20 +258,12 @@ impl Theme {
         .into_iter()
         .map(|(k, s)| (k.to_string(), s))
         .collect();
-        Theme {
-            name: TERMINAL.to_string(),
-            palette,
-            roles,
-        }
+        Theme { name: TERMINAL.to_string(), palette, roles }
     }
 
     pub fn parse(text: &str) -> Result<Theme, String> {
         let doc: toml::Table = text.parse().map_err(|e| format!("theme: {e}"))?;
-        let name = doc
-            .get("name")
-            .and_then(|v| v.as_str())
-            .unwrap_or("")
-            .to_string();
+        let name = doc.get("name").and_then(|v| v.as_str()).unwrap_or("").to_string();
         let mut palette = HashMap::new();
         if let Some(p) = doc.get("palette").and_then(|v| v.as_table()) {
             for (k, v) in p {
@@ -351,11 +280,7 @@ impl Theme {
                 }
             }
         }
-        Ok(Theme {
-            name,
-            palette,
-            roles,
-        })
+        Ok(Theme { name, palette, roles })
     }
 
     /// `name` is a theme file stem (`LvimBase_dark`), its `name` field
@@ -377,8 +302,7 @@ impl Theme {
         for dir in dirs {
             let f = dir.join(format!("{name}.toml"));
             if f.is_file() {
-                let text =
-                    std::fs::read_to_string(&f).map_err(|e| format!("{}: {e}", f.display()))?;
+                let text = std::fs::read_to_string(&f).map_err(|e| format!("{}: {e}", f.display()))?;
                 return Theme::parse(&text);
             }
             if let Ok(rd) = std::fs::read_dir(dir) {
@@ -395,11 +319,7 @@ impl Theme {
         if name.eq_ignore_ascii_case(TERMINAL) {
             return Ok(Theme::terminal());
         }
-        let dirs = dirs
-            .iter()
-            .map(|d| d.display().to_string())
-            .collect::<Vec<_>>()
-            .join(", ");
+        let dirs = dirs.iter().map(|d| d.display().to_string()).collect::<Vec<_>>().join(", ");
         Err(format!("theme not found: {name} (looked in {dirs})"))
     }
 
@@ -439,11 +359,7 @@ fn xdg(var: &str, fallback: &str) -> Option<std::path::PathBuf> {
         .ok()
         .filter(|s| !s.is_empty())
         .map(std::path::PathBuf::from)
-        .or_else(|| {
-            std::env::var("HOME")
-                .ok()
-                .map(|h| std::path::Path::new(&h).join(fallback))
-        })
+        .or_else(|| std::env::var("HOME").ok().map(|h| std::path::Path::new(&h).join(fallback)))
 }
 
 /// The theme to draw with: `name` (from --theme / $LVIM_FUZZY_THEME / the
@@ -459,10 +375,7 @@ pub fn resolve_theme_in(dirs: &[std::path::PathBuf], name: Option<&str>) -> (The
         None => (Theme::terminal(), None),
         Some(n) => match Theme::load_in(dirs, n) {
             Ok(t) => (t, None),
-            Err(e) => (
-                Theme::terminal(),
-                Some(format!("{e} — using the terminal's colours")),
-            ),
+            Err(e) => (Theme::terminal(), Some(format!("{e} — using the terminal's colours"))),
         },
     }
 }
@@ -472,9 +385,7 @@ pub fn resolve_theme_in(dirs: &[std::path::PathBuf], name: Option<&str>) -> (The
 /// extras/lvim_fuzzy/<Name>.toml on every theme switch and sets `theme` in the
 /// config.
 pub fn theme_dirs() -> Vec<std::path::PathBuf> {
-    config_dir()
-        .map(|c| vec![c.join("themes")])
-        .unwrap_or_default()
+    config_dir().map(|c| vec![c.join("themes")]).unwrap_or_default()
 }
 
 /// The config directory of lvim-fuzzy (~/.config/lvim-fuzzy).
@@ -529,10 +440,7 @@ impl Look {
         let bar = |n: &str| t.roles.get(n).copied().unwrap_or(blue);
         let panel = r("panel");
         // roles drawn on the panel take its background when they set none
-        let on_panel = |s: Style| Style {
-            bg: s.bg.or(panel.bg),
-            ..s
-        };
+        let on_panel = |s: Style| Style { bg: s.bg.or(panel.bg), ..s };
         Look {
             rows: [r("row_odd"), r("row_even")],
             sel: [r("sel_odd"), r("sel_even")],
@@ -576,17 +484,8 @@ pub fn icon(path: &str, is_dir: bool) -> (&'static str, &'static str) {
     if is_dir {
         return DIRECTORY;
     }
-    let find = |table: &'static [(&str, &str, &str)], key: &str| {
-        table
-            .binary_search_by(|(k, _, _)| (*k).cmp(key))
-            .ok()
-            .map(|i| (table[i].1, table[i].2))
-    };
-    let name = path
-        .trim_end_matches('/')
-        .rsplit('/')
-        .next()
-        .unwrap_or(path);
+    let find = |table: &'static [(&str, &str, &str)], key: &str| table.binary_search_by(|(k, _, _)| (*k).cmp(key)).ok().map(|i| (table[i].1, table[i].2));
+    let name = path.trim_end_matches('/').rsplit('/').next().unwrap_or(path);
     if let Some(hit) = find(FILENAMES, name) {
         return hit;
     }
@@ -649,20 +548,10 @@ count = { fg = "#5b7d7e" }
         // the terminal set to LvimBase_dark's palette → the generated theme's roles
         let h = |s: &str| hex(s).unwrap();
         let mut palette = [None; 16];
-        for (i, c) in [
-            (1, "#d75e52"),
-            (2, "#7e965a"),
-            (3, "#d8b36f"),
-            (4, "#447ca2"),
-            (8, "#5b7d7e"),
-        ] {
+        for (i, c) in [(1, "#d75e52"), (2, "#7e965a"), (3, "#d8b36f"), (4, "#447ca2"), (8, "#5b7d7e")] {
             palette[i] = Some(h(c));
         }
-        let tc = crate::termcolors::TermColors {
-            fg: h("#5e8888"),
-            bg: h("#20272b"),
-            palette,
-        };
+        let tc = crate::termcolors::TermColors { fg: h("#5e8888"), bg: h("#20272b"), palette };
         let t = Theme::from_terminal(&tc).unwrap();
         // values from lvim-colorscheme's extras/lvim_fuzzy/LvimBase_dark.toml
         assert_eq!(t.role("row_odd").bg, hex("#292e2e"));
@@ -682,27 +571,13 @@ count = { fg = "#5b7d7e" }
         // a palette whose bright black is almost the background (kitty's everforest)
         let rgb = |s: &str| {
             let v = u32::from_str_radix(&s[1..], 16).unwrap();
-            Color::Rgb {
-                r: (v >> 16) as u8,
-                g: (v >> 8) as u8,
-                b: v as u8,
-            }
+            Color::Rgb { r: (v >> 16) as u8, g: (v >> 8) as u8, b: v as u8 }
         };
         let mut palette = [None; 16];
-        for (i, c) in [
-            "#1c2121", "#cb4f4f", "#75783a", "#af9e6b", "#3a6479", "#bb755e", "#527a57", "#677163",
-            "#2d3331",
-        ]
-        .iter()
-        .enumerate()
-        {
+        for (i, c) in ["#1c2121", "#cb4f4f", "#75783a", "#af9e6b", "#3a6479", "#bb755e", "#527a57", "#677163", "#2d3331"].iter().enumerate() {
             palette[i] = Some(rgb(c));
         }
-        let tc = crate::termcolors::TermColors {
-            fg: rgb("#96a990"),
-            bg: rgb("#212626"),
-            palette,
-        };
+        let tc = crate::termcolors::TermColors { fg: rgb("#96a990"), bg: rgb("#212626"), palette };
         let t = Theme::from_terminal(&tc).unwrap();
         let count = t.role("count").fg.unwrap();
         assert!(contrast(count, rgb("#212626")) >= 40.0, "{count:?}");

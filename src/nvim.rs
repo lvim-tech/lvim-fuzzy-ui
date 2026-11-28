@@ -101,11 +101,7 @@ impl Grid {
     /// The style of highlight `id` with the default colours filled in.
     pub fn style(&self, id: u64) -> Style {
         let s = self.hl.get(&id).copied().unwrap_or_default();
-        Style {
-            fg: s.fg.or(self.default_fg),
-            bg: s.bg.or(self.default_bg),
-            ..s
-        }
+        Style { fg: s.fg.or(self.default_fg), bg: s.bg.or(self.default_bg), ..s }
     }
 }
 
@@ -145,12 +141,7 @@ struct Opens {
 }
 
 /// Write one request (`[0, id, method, params]`); returns its id.
-fn write_request(
-    writer: &Mutex<BufWriter<Box<dyn Write + Send>>>,
-    next_id: &Mutex<u64>,
-    method: &str,
-    params: Value,
-) -> u64 {
+fn write_request(writer: &Mutex<BufWriter<Box<dyn Write + Send>>>, next_id: &Mutex<u64>, method: &str, params: Value) -> u64 {
     let id = {
         let mut n = next_id.lock().unwrap();
         *n += 1;
@@ -168,11 +159,7 @@ fn rgb(v: &Value) -> Option<Color> {
     if n < 0 {
         return None;
     }
-    Some(Color::Rgb {
-        r: (n >> 16) as u8,
-        g: (n >> 8) as u8,
-        b: n as u8,
-    })
+    Some(Color::Rgb { r: (n >> 16) as u8, g: (n >> 8) as u8, b: n as u8 })
 }
 
 /// The preview's Neovim is not the pane's Neovim: it draws in no terminal of its own. Inheriting the
@@ -213,22 +200,12 @@ impl Nvim {
     /// Start `nvim --embed`.
     fn embed(program: &str, appname: Option<&str>, wake: Sender<()>) -> std::io::Result<Nvim> {
         let words = crate::util::shell_words(program).unwrap_or_else(|_| vec!["nvim".into()]);
-        let (prog, args) = words
-            .split_first()
-            .map(|(p, a)| (p.clone(), a.to_vec()))
-            .unwrap_or(("nvim".into(), vec![]));
+        let (prog, args) = words.split_first().map(|(p, a)| (p.clone(), a.to_vec())).unwrap_or(("nvim".into(), vec![]));
         let mut cmd = Command::new(prog);
         // mark the instance so plugins can tell it is the finder's preview
         // (lvim-hud hides its tabline there: the finder shows the file name itself)
         cmd.args(args)
-            .args([
-                "--cmd",
-                "let g:lvim_fuzzy_preview = 1",
-                "--embed",
-                "-n",
-                "-i",
-                "NONE",
-            ])
+            .args(["--cmd", "let g:lvim_fuzzy_preview = 1", "--embed", "-n", "-i", "NONE"])
             .env("LVIM_FUZZY_PREVIEW", "1")
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
@@ -244,12 +221,7 @@ impl Nvim {
     }
 
     /// The client over any transport: requests to `w`, redraws and answers from `r`.
-    fn with_io(
-        child: Option<Child>,
-        w: Box<dyn Write + Send>,
-        r: Box<dyn std::io::Read + Send>,
-        wake: Sender<()>,
-    ) -> Nvim {
+    fn with_io(child: Option<Child>, w: Box<dyn Write + Send>, r: Box<dyn std::io::Read + Send>, wake: Sender<()>) -> Nvim {
         let grid = Arc::new(Mutex::new(Grid::default()));
         let g = grid.clone();
         let writer: Writer = Arc::new(Mutex::new(BufWriter::new(w)));
@@ -275,10 +247,7 @@ impl Nvim {
                         o.in_flight_tag = o.waiting_tag.take();
                     }
                     if id.is_some() && o.in_flight == id {
-                        o.in_flight = o
-                            .waiting
-                            .take()
-                            .map(|p| write_request(&w2, &n2, "nvim_exec_lua", p));
+                        o.in_flight = o.waiting.take().map(|p| write_request(&w2, &n2, "nvim_exec_lua", p));
                     }
                     continue;
                 }
@@ -287,16 +256,7 @@ impl Nvim {
             g.lock().unwrap().exited = true;
             let _ = wake.send(());
         });
-        Nvim {
-            child,
-            lease: None,
-            writer,
-            started: std::time::Instant::now(),
-            next_id,
-            opens,
-            grid,
-            attached: (0, 0),
-        }
+        Nvim { child, lease: None, writer, started: std::time::Instant::now(), next_id, opens, grid, attached: (0, 0) }
     }
 
     fn send(&self, method: &str, params: Vec<Value>) {
@@ -309,21 +269,12 @@ impl Nvim {
             return;
         }
         if self.attached == (0, 0) {
-            let opts = Value::Map(vec![
-                (s("rgb"), Value::from(true)),
-                (s("ext_linegrid"), Value::from(true)),
-            ]);
-            self.send(
-                "nvim_ui_attach",
-                vec![Value::from(w as u64), Value::from(h as u64), opts],
-            );
+            let opts = Value::Map(vec![(s("rgb"), Value::from(true)), (s("ext_linegrid"), Value::from(true))]);
+            self.send("nvim_ui_attach", vec![Value::from(w as u64), Value::from(h as u64), opts]);
             // Nothing is set in the instance from here: how the preview looks is up to the
             // user's config and plugins, which see g:lvim_fuzzy_preview.
         } else {
-            self.send(
-                "nvim_ui_try_resize",
-                vec![Value::from(w as u64), Value::from(h as u64)],
-            );
+            self.send("nvim_ui_try_resize", vec![Value::from(w as u64), Value::from(h as u64)]);
         }
         self.attached = (w, h);
     }
@@ -380,13 +331,7 @@ view()
 "#;
         let params = Value::Array(vec![
             s(&CODE.replace("@PREVIEW_MODULE@", PREVIEW_MODULE)),
-            Value::Array(vec![
-                s(path),
-                Value::from(line as u64),
-                Value::from(col as u64),
-                s(text),
-                s(query),
-            ]),
+            Value::Array(vec![s(path), Value::from(line as u64), Value::from(col as u64), s(text), s(query)]),
         ]);
         // one open at a time; meanwhile only the latest target waits
         let tag = if path.is_empty() { text.to_string() } else { path.to_string() };
@@ -396,12 +341,7 @@ view()
             o.waiting_tag = Some(tag);
         } else {
             o.in_flight_tag = Some(tag);
-            o.in_flight = Some(write_request(
-                &self.writer,
-                &self.next_id,
-                "nvim_exec_lua",
-                params,
-            ));
+            o.in_flight = Some(write_request(&self.writer, &self.next_id, "nvim_exec_lua", params));
         }
     }
 
@@ -411,17 +351,7 @@ view()
     }
 
     pub fn mouse(&self, button: &str, action: &str, modifier: &str, row: usize, col: usize) {
-        self.send(
-            "nvim_input_mouse",
-            vec![
-                s(button),
-                s(action),
-                s(modifier),
-                Value::from(0),
-                Value::from(row as u64),
-                Value::from(col as u64),
-            ],
-        );
+        self.send("nvim_input_mouse", vec![s(button), s(action), s(modifier), Value::from(0), Value::from(row as u64), Value::from(col as u64)]);
     }
 
     pub fn quit(mut self) {
@@ -501,15 +431,9 @@ fn handle(msg: &Value, grid: &Arc<Mutex<Grid>>, wake: &Sender<()>) {
                                 "foreground" => st.fg = rgb(v),
                                 "background" => st.bg = rgb(v),
                                 "bold" if v.as_bool() == Some(true) => attrs.set(Attribute::Bold),
-                                "italic" if v.as_bool() == Some(true) => {
-                                    attrs.set(Attribute::Italic)
-                                }
-                                "underline" | "undercurl" if v.as_bool() == Some(true) => {
-                                    attrs.set(Attribute::Underlined)
-                                }
-                                "strikethrough" if v.as_bool() == Some(true) => {
-                                    attrs.set(Attribute::CrossedOut)
-                                }
+                                "italic" if v.as_bool() == Some(true) => attrs.set(Attribute::Italic),
+                                "underline" | "undercurl" if v.as_bool() == Some(true) => attrs.set(Attribute::Underlined),
+                                "strikethrough" if v.as_bool() == Some(true) => attrs.set(Attribute::CrossedOut),
                                 "reverse" if v.as_bool() == Some(true) => reverse = true,
                                 _ => {}
                             }
@@ -607,27 +531,15 @@ pub fn key_notation(e: &crossterm::event::KeyEvent) -> Option<String> {
     }
     let shift = m.contains(KeyModifiers::SHIFT);
     let named = |n: &str, pre: &str| -> String {
-        let s = if shift {
-            format!("S-{pre}")
-        } else {
-            pre.to_string()
-        };
+        let s = if shift { format!("S-{pre}") } else { pre.to_string() };
         format!("<{s}{n}>")
     };
     Some(match e.code {
         KeyCode::Char(c) => {
             if pre.is_empty() {
-                if c == '<' {
-                    "<lt>".into()
-                } else {
-                    c.to_string()
-                }
+                if c == '<' { "<lt>".into() } else { c.to_string() }
             } else {
-                let c = if c == '<' {
-                    "lt".to_string()
-                } else {
-                    c.to_string()
-                };
+                let c = if c == '<' { "lt".to_string() } else { c.to_string() };
                 format!("<{pre}{c}>")
             }
         }
@@ -659,14 +571,8 @@ pub fn parse_target(s: &str) -> (String, usize, usize) {
     }
     let mut parts = s.splitn(4, ':');
     let file = parts.next().unwrap_or("").to_string();
-    let line = parts
-        .next()
-        .and_then(|p| p.trim().parse().ok())
-        .unwrap_or(0);
-    let col = parts
-        .next()
-        .and_then(|p| p.trim().parse().ok())
-        .unwrap_or(0);
+    let line = parts.next().and_then(|p| p.trim().parse().ok()).unwrap_or(0);
+    let col = parts.next().and_then(|p| p.trim().parse().ok()).unwrap_or(0);
     (file, line, col)
 }
 
@@ -743,20 +649,14 @@ mod tests {
                 assert_eq!((g.w, g.h), (60, 8));
                 break;
             }
-            assert!(
-                std::time::Instant::now() < deadline,
-                "no file text in the grid: {text}"
-            );
+            assert!(std::time::Instant::now() < deadline, "no file text in the grid: {text}");
         }
         n.quit();
     }
 
     #[test]
     fn targets() {
-        assert_eq!(
-            parse_target("src/x.rs:12:3:fn main"),
-            ("src/x.rs".into(), 12, 3)
-        );
+        assert_eq!(parse_target("src/x.rs:12:3:fn main"), ("src/x.rs".into(), 12, 3));
         assert_eq!(parse_target("a.lua:7"), ("a.lua".into(), 7, 0));
         assert_eq!(parse_target("plain"), ("plain".into(), 0, 0));
     }

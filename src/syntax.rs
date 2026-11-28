@@ -56,10 +56,7 @@ fn classify(stack: &ScopeStack) -> Option<Tok> {
             Tok::String
         } else if s.starts_with("constant.numeric") {
             Tok::Number
-        } else if s.starts_with("constant")
-            || s.starts_with("support.constant")
-            || s.starts_with("variable.language")
-        {
+        } else if s.starts_with("constant") || s.starts_with("support.constant") || s.starts_with("variable.language") {
             Tok::Constant
         } else if s.starts_with("entity.name.function")
             || s.starts_with("support.function")
@@ -83,10 +80,7 @@ fn classify(stack: &ScopeStack) -> Option<Tok> {
             Tok::Attribute
         } else if s.starts_with("markup.heading") || s.starts_with("entity.name.section") {
             Tok::Heading
-        } else if s.starts_with("markup.bold")
-            || s.starts_with("markup.italic")
-            || s.starts_with("markup.raw")
-        {
+        } else if s.starts_with("markup.bold") || s.starts_with("markup.italic") || s.starts_with("markup.raw") {
             Tok::Emphasis
         } else {
             continue;
@@ -105,12 +99,7 @@ pub fn highlight_file(path: &str, lines: &[String], max_lines: usize) -> Vec<Vec
 
 /// `highlight_file`, given up (None) as soon as `stop` says so; it is asked
 /// every 32 lines.
-pub fn highlight_file_until(
-    path: &str,
-    lines: &[String],
-    max_lines: usize,
-    stop: &dyn Fn() -> bool,
-) -> Option<Vec<Vec<Span>>> {
+pub fn highlight_file_until(path: &str, lines: &[String], max_lines: usize, stop: &dyn Fn() -> bool) -> Option<Vec<Vec<Span>>> {
     let Some(syntax) = syntax_for(path, lines.first().map(String::as_str).unwrap_or("")) else {
         return Some(Vec::new());
     };
@@ -183,18 +172,10 @@ mod tests {
 
     #[test]
     fn colours_a_lua_file() {
-        let lines: Vec<String> = ["local x = foo(\"s\") -- note", "return x"]
-            .iter()
-            .map(|s| s.to_string())
-            .collect();
+        let lines: Vec<String> = ["local x = foo(\"s\") -- note", "return x"].iter().map(|s| s.to_string()).collect();
         let spans = highlight_file("a.lua", &lines, 100);
         assert_eq!(spans.len(), 2);
-        let at = |line: usize, c: u32| {
-            spans[line]
-                .iter()
-                .find(|s| s.0 <= c && c < s.1)
-                .map(|s| s.2)
-        };
+        let at = |line: usize, c: u32| spans[line].iter().find(|s| s.0 <= c && c < s.1).map(|s| s.2);
         assert_eq!(at(0, 0), Some(Tok::Keyword)); // local
         assert_eq!(at(0, 15), Some(Tok::String)); // "s"
         assert_eq!(at(0, 22), Some(Tok::Comment));

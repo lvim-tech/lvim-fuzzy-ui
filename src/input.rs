@@ -45,22 +45,30 @@ pub fn spawn(wake: Sender<()>) -> Receiver<Event> {
             PAUSE_W.store(-1, Ordering::SeqCst);
         }
         let tty_fd = tty.as_ref().map_or(-1, |t| t.as_raw_fd());
-        run(tty_fd, pr, winch_r.as_raw_fd(), &tx, &wake, &mut |out| {
-            // everything crossterm has ready (it reads the bytes itself; with a zero time it does not, so 1 ms)
-            // (at most BATCH at a time: a stream of events — a mouse dragged, a paste with no brackets — reaches the loop as it comes)
-            let mut n = 0;
-            while n < BATCH && crossterm::event::poll(Duration::from_millis(1)).unwrap_or(false) {
-                match crossterm::event::read() {
-                    Ok(ev) => out.push(ev),
-                    Err(_) => break,
+        run(
+            tty_fd,
+            pr,
+            winch_r.as_raw_fd(),
+            &tx,
+            &wake,
+            &mut |out| {
+                // everything crossterm has ready (it reads the bytes itself; with a zero time it does not, so 1 ms)
+                // (at most BATCH at a time: a stream of events — a mouse dragged, a paste with no brackets — reaches the loop as it comes)
+                let mut n = 0;
+                while n < BATCH && crossterm::event::poll(Duration::from_millis(1)).unwrap_or(false) {
+                    match crossterm::event::read() {
+                        Ok(ev) => out.push(ev),
+                        Err(_) => break,
+                    }
+                    n += 1;
                 }
-                n += 1;
-            }
-        }, &mut |out| {
-            if let Ok((w, h)) = crossterm::terminal::size() {
-                out.push(Event::Resize(w, h));
-            }
-        });
+            },
+            &mut |out| {
+                if let Ok((w, h)) = crossterm::terminal::size() {
+                    out.push(Event::Resize(w, h));
+                }
+            },
+        );
         drop(winch_r);
     });
     rx
@@ -209,14 +217,22 @@ mod tests {
         let (tx, rx) = channel();
         let (wake, wake_rx) = channel();
         std::thread::spawn(move || {
-            run(tty_r, pause_r, winch_r, &tx, &wake, &mut |out| {
-                let mut b = [0u8; 16];
-                // SAFETY: reads into a local buffer
-                let n = unsafe { libc::read(tty_r, b.as_mut_ptr().cast(), b.len()) };
-                for c in &b[..n.max(0) as usize] {
-                    out.push(Event::Key(crossterm::event::KeyEvent::from(crossterm::event::KeyCode::Char(*c as char))));
-                }
-            }, &mut |_| {});
+            run(
+                tty_r,
+                pause_r,
+                winch_r,
+                &tx,
+                &wake,
+                &mut |out| {
+                    let mut b = [0u8; 16];
+                    // SAFETY: reads into a local buffer
+                    let n = unsafe { libc::read(tty_r, b.as_mut_ptr().cast(), b.len()) };
+                    for c in &b[..n.max(0) as usize] {
+                        out.push(Event::Key(crossterm::event::KeyEvent::from(crossterm::event::KeyCode::Char(*c as char))));
+                    }
+                },
+                &mut |_| {},
+            );
         });
         let put = |c: u8| unsafe { libc::write(tty_w, [c].as_ptr().cast(), 1) };
         let t = Instant::now();
@@ -256,14 +272,22 @@ mod tests {
         let (tx, rx) = channel();
         let (wake, wake_rx) = channel();
         std::thread::spawn(move || {
-            run(slave, pause_r, winch_r, &tx, &wake, &mut |out| {
-                let mut b = [0u8; 16];
-                // SAFETY: reads into a local buffer
-                let n = unsafe { libc::read(slave, b.as_mut_ptr().cast(), b.len()) };
-                for c in &b[..n.max(0) as usize] {
-                    out.push(Event::Key(crossterm::event::KeyEvent::from(crossterm::event::KeyCode::Char(*c as char))));
-                }
-            }, &mut |_| {});
+            run(
+                slave,
+                pause_r,
+                winch_r,
+                &tx,
+                &wake,
+                &mut |out| {
+                    let mut b = [0u8; 16];
+                    // SAFETY: reads into a local buffer
+                    let n = unsafe { libc::read(slave, b.as_mut_ptr().cast(), b.len()) };
+                    for c in &b[..n.max(0) as usize] {
+                        out.push(Event::Key(crossterm::event::KeyEvent::from(crossterm::event::KeyCode::Char(*c as char))));
+                    }
+                },
+                &mut |_| {},
+            );
         });
         let t = Instant::now();
         // SAFETY: one byte to the master

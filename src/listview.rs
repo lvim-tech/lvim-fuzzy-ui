@@ -98,11 +98,8 @@ pub fn draw_dir(cv: &mut Canvas, l: &Look, inner: Rect, entries: &[&Entry], offs
         cv.put(inner.x + 1, inner.y, "(empty)", l.counter, inner.x + inner.w);
         return 0;
     }
-    let role = |name: &str, fallback: &str| -> Style {
-        l.theme.roles.get(name).copied().unwrap_or(Style { fg: l.theme.color(fallback), ..Style::default() })
-    };
-    let (dir_st, exec_st, link_st, broken_st) =
-        (role("dir", "blue"), role("exec", "green"), role("link", "cyan"), role("broken", "red"));
+    let role = |name: &str, fallback: &str| -> Style { l.theme.roles.get(name).copied().unwrap_or(Style { fg: l.theme.color(fallback), ..Style::default() }) };
+    let (dir_st, exec_st, link_st, broken_st) = (role("dir", "blue"), role("exec", "green"), role("link", "cyan"), role("broken", "red"));
     let h = inner.h as usize;
     *offset = (*offset).min(entries.len().saturating_sub(h));
     let lim = inner.x + inner.w;
@@ -194,9 +191,7 @@ pub fn read_table(path: &std::path::Path, tsv: bool) -> Vec<Vec<String>> {
 pub fn draw_table(cv: &mut Canvas, l: &Look, inner: Rect, rows: &[Vec<String>], offset: &mut usize) -> usize {
     let lim = inner.x + inner.w;
     let ncol = rows.iter().map(Vec::len).max().unwrap_or(0);
-    let widths: Vec<usize> = (0..ncol)
-        .map(|c| rows.iter().filter_map(|r| r.get(c)).map(|v| str_width(v)).max().unwrap_or(0).min(32))
-        .collect();
+    let widths: Vec<usize> = (0..ncol).map(|c| rows.iter().filter_map(|r| r.get(c)).map(|v| str_width(v)).max().unwrap_or(0).min(32)).collect();
     let colours = ["yellow", "cyan", "green", "purple", "orange", "teal", "magenta"];
     let dim = tint(l, "comment", l.panel, l.panel.bg);
     let h = inner.h as usize;

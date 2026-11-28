@@ -149,19 +149,9 @@ fn c256(n: u8) -> Option<Color> {
 
 impl Theme {
     pub fn base(name: &str) -> Option<Theme> {
-        let mut t = Theme {
-            slots: Default::default(),
-            mono: false,
-        };
+        let mut t = Theme { slots: Default::default(), mono: false };
         let set = |t: &mut Theme, s: Slot, fg: Option<Color>, bg: Option<Color>| {
-            t.slots.insert(
-                s,
-                Style {
-                    fg,
-                    bg,
-                    ..Default::default()
-                },
-            );
+            t.slots.insert(s, Style { fg, bg, ..Default::default() });
         };
         match name {
             "dark" | "dark256" => {
@@ -220,28 +210,15 @@ impl Theme {
     pub fn apply(&mut self, spec: &str) -> Result<(), String> {
         for part in spec.split(',').map(str::trim).filter(|p| !p.is_empty()) {
             if !part.contains(':') {
-                let base = Theme::base(part)
-                    .ok_or_else(|| format!("invalid color specification: {part}"))?;
+                let base = Theme::base(part).ok_or_else(|| format!("invalid color specification: {part}"))?;
                 *self = base;
                 continue;
             }
             let mut it = part.split(':');
             let name = it.next().unwrap_or("");
-            let slot = NAMES
-                .iter()
-                .find(|(n, _)| *n == name)
-                .map(|(_, s)| *s)
-                .ok_or_else(|| format!("invalid color specification: {part}"))?;
+            let slot = NAMES.iter().find(|(n, _)| *n == name).map(|(_, s)| *s).ok_or_else(|| format!("invalid color specification: {part}"))?;
             let mut st = self.slots.get(&slot).copied().unwrap_or_default();
-            let bg_slot = matches!(
-                slot,
-                Slot::Bg
-                    | Slot::CurBg
-                    | Slot::SelBg
-                    | Slot::Gutter
-                    | Slot::PreviewBg
-                    | Slot::InputBg
-            );
+            let bg_slot = matches!(slot, Slot::Bg | Slot::CurBg | Slot::SelBg | Slot::Gutter | Slot::PreviewBg | Slot::InputBg);
             for tok in it {
                 if let Some(a) = parse_attr(tok) {
                     if tok == "regular" {
@@ -306,11 +283,7 @@ fn parse_color(s: &str) -> Option<Option<Color>> {
     if let Some(hex) = s.strip_prefix('#') {
         if hex.len() == 6 {
             let v = u32::from_str_radix(hex, 16).ok()?;
-            return Some(Some(Color::Rgb {
-                r: (v >> 16) as u8,
-                g: (v >> 8) as u8,
-                b: v as u8,
-            }));
+            return Some(Some(Color::Rgb { r: (v >> 16) as u8, g: (v >> 8) as u8, b: v as u8 }));
         }
         return None;
     }
@@ -365,14 +338,7 @@ mod tests {
         ] {
             t.apply(s).unwrap();
         }
-        assert_eq!(
-            t.get(Slot::CurBg).bg,
-            Some(Color::Rgb {
-                r: 0x22,
-                g: 0x29,
-                b: 0x2d
-            })
-        );
+        assert_eq!(t.get(Slot::CurBg).bg, Some(Color::Rgb { r: 0x22, g: 0x29, b: 0x2d }));
         assert!(t.get(Slot::Query).regular);
         assert!(t.apply("nope:1").is_err());
         t.apply("light,fg:1:bold").unwrap();

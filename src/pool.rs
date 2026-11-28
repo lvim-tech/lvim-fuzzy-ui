@@ -79,17 +79,13 @@ pub struct Lease {
 pub fn take(nvim: &str, appname: Option<&str>) -> Option<Lease> {
     let mut ctl = UnixStream::connect(control_path(&dir())).ok()?;
     ctl.set_read_timeout(Some(Duration::from_millis(500))).ok()?;
-    ctl.write_all(format!("take\t{}\n", key(nvim, appname)).as_bytes())
-        .ok()?;
+    ctl.write_all(format!("take\t{}\n", key(nvim, appname)).as_bytes()).ok()?;
     let mut line = String::new();
     BufReader::new(ctl.try_clone().ok()?).read_line(&mut line).ok()?;
     let socket = line.trim_end().strip_prefix("ok\t")?;
     // the lease lives as long as this connection; no timeout on it from here
     ctl.set_read_timeout(None).ok()?;
-    Some(Lease {
-        _ctl: ctl,
-        socket: PathBuf::from(socket),
-    })
+    Some(Lease { _ctl: ctl, socket: PathBuf::from(socket) })
 }
 
 /// Send one request to a running pool and read its whole answer; None when no
@@ -167,10 +163,7 @@ fn spawn_child(cmd: Command) -> std::io::Result<Child> {
         Mutex::new(tx)
     });
     let (rtx, rrx) = std::sync::mpsc::channel();
-    tx.lock()
-        .unwrap()
-        .send((cmd, rtx))
-        .map_err(|_| std::io::Error::other("the spawner thread is gone"))?;
+    tx.lock().unwrap().send((cmd, rtx)).map_err(|_| std::io::Error::other("the spawner thread is gone"))?;
     rrx.recv().map_err(|_| std::io::Error::other("the spawner thread is gone"))?
 }
 
@@ -213,10 +206,7 @@ impl Pool {
         let socket = self.dir.join(format!("nvim-{}-{id}.sock", std::process::id()));
         let _ = std::fs::remove_file(&socket);
         let words = crate::util::shell_words(&self.nvim).unwrap_or_else(|_| vec!["nvim".into()]);
-        let (prog, args) = words
-            .split_first()
-            .map(|(p, a)| (p.clone(), a.to_vec()))
-            .unwrap_or(("nvim".into(), vec![]));
+        let (prog, args) = words.split_first().map(|(p, a)| (p.clone(), a.to_vec())).unwrap_or(("nvim".into(), vec![]));
         let mut cmd = Command::new(prog);
         cmd.args(args)
             .args(["--cmd", "let g:lvim_fuzzy_preview = 1", "-n", "-i", "NONE", "--headless", "--listen"])
@@ -240,12 +230,7 @@ impl Pool {
                 return;
             }
         };
-        sh.insts.push(Inst {
-            id,
-            child,
-            socket: socket.clone(),
-            state: State::Warming,
-        });
+        sh.insts.push(Inst { id, child, socket: socket.clone(), state: State::Warming });
         drop(sh);
         let pool = self.clone();
         thread::spawn(move || {
@@ -303,13 +288,10 @@ impl Pool {
         }
         let got = {
             let mut sh = self.shared.lock().unwrap();
-            sh.insts
-                .iter_mut()
-                .find(|i| i.state == State::Free)
-                .map(|i| {
-                    i.state = State::Taken;
-                    (i.id, i.socket.clone())
-                })
+            sh.insts.iter_mut().find(|i| i.state == State::Free).map(|i| {
+                i.state = State::Taken;
+                (i.id, i.socket.clone())
+            })
         };
         self.ensure_free();
         got
@@ -351,10 +333,7 @@ impl Pool {
 
     fn status(&self) -> String {
         let sh = self.shared.lock().unwrap();
-        sh.insts
-            .iter()
-            .map(|i| format!("{}\t{}\t{}\n", i.id, i.state.name(), i.socket.display()))
-            .collect()
+        sh.insts.iter().map(|i| format!("{}\t{}\t{}\n", i.id, i.state.name(), i.socket.display())).collect()
     }
 
     fn stop(&self) {
@@ -509,10 +488,7 @@ fn warm_conn(conn: UnixStream, deadline: Instant) -> bool {
     let Ok(mut w) = conn.try_clone() else {
         return false;
     };
-    let opts = Value::Map(vec![
-        (s("rgb"), Value::from(true)),
-        (s("ext_linegrid"), Value::from(true)),
-    ]);
+    let opts = Value::Map(vec![(s("rgb"), Value::from(true)), (s("ext_linegrid"), Value::from(true))]);
     if rpc(&mut w, 1, "nvim_ui_attach", vec![Value::from(80), Value::from(24), opts]).is_err() {
         return false;
     }
@@ -560,11 +536,7 @@ fn newest(root: &Path, depth: usize, acc: &mut SystemTime) {
         // hidden entries are state, not config (`.git`, a plugin's own data such as the Control
         // Center's `.configs/`, written on every start — counting them restarted the pool in a loop);
         // `.snapshots` is kept: it changes when the plugins are updated
-        if p
-            .file_name()
-            .and_then(|n| n.to_str())
-            .is_some_and(|n| n.starts_with('.') && n != ".snapshots")
-        {
+        if p.file_name().and_then(|n| n.to_str()).is_some_and(|n| n.starts_with('.') && n != ".snapshots") {
             continue;
         }
         let Ok(ft) = e.file_type() else { continue };
@@ -628,12 +600,7 @@ pub fn serve(nvim: &str, appname: Option<&str>, config: Option<&Path>) -> Result
         dir,
         nvim: nvim.to_string(),
         appname: appname.map(str::to_string),
-        shared: Mutex::new(Shared {
-            insts: Vec::new(),
-            next: 0,
-            failures: 0,
-            retry_at: None,
-        }),
+        shared: Mutex::new(Shared { insts: Vec::new(), next: 0, failures: 0, retry_at: None }),
     });
     pool.ensure_free();
 
@@ -691,12 +658,7 @@ mod tests {
     use super::*;
 
     fn has_nvim() -> bool {
-        Command::new("nvim")
-            .arg("--version")
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .status()
-            .is_ok_and(|s| s.success())
+        Command::new("nvim").arg("--version").stdout(Stdio::null()).stderr(Stdio::null()).status().is_ok_and(|s| s.success())
     }
 
     fn wait_for(mut f: impl FnMut() -> bool, secs: u64) -> bool {
@@ -727,12 +689,7 @@ mod tests {
             dir: dir.clone(),
             nvim: "nvim -u NONE".into(),
             appname: None,
-            shared: Mutex::new(Shared {
-                insts: Vec::new(),
-                next: 0,
-                failures: 0,
-                retry_at: None,
-            }),
+            shared: Mutex::new(Shared { insts: Vec::new(), next: 0, failures: 0, retry_at: None }),
         });
         let k = key("nvim -u NONE", None);
         pool.ensure_free();
@@ -766,15 +723,7 @@ mod tests {
     impl Pool {
         /// Test helper: kill every instance but `keep`.
         fn kill_others(&self, keep: u64) {
-            let ids: Vec<u64> = self
-                .shared
-                .lock()
-                .unwrap()
-                .insts
-                .iter()
-                .map(|i| i.id)
-                .filter(|&i| i != keep)
-                .collect();
+            let ids: Vec<u64> = self.shared.lock().unwrap().insts.iter().map(|i| i.id).filter(|&i| i != keep).collect();
             for id in ids {
                 self.kill(id);
             }

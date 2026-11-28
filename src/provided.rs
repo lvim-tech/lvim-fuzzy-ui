@@ -125,7 +125,13 @@ fn preview_of(ins: &Value) -> Preview {
             match b.get("type").and_then(Value::as_str) {
                 Some("entries") => Body::Entries(rows.iter().map(entry_of).collect()),
                 Some("table") => Body::Table(
-                    rows.iter().map(|r| r.as_array().map(|c| c.iter().map(|x| x.as_str().map(str::to_string).unwrap_or_else(|| x.to_string())).collect()).unwrap_or_default()).collect(),
+                    rows.iter()
+                        .map(|r| {
+                            r.as_array()
+                                .map(|c| c.iter().map(|x| x.as_str().map(str::to_string).unwrap_or_else(|| x.to_string())).collect())
+                                .unwrap_or_default()
+                        })
+                        .collect(),
                 ),
                 Some("tree") => Body::Tree(
                     rows.iter()
@@ -384,7 +390,6 @@ fn draw_lines(cv: &mut Canvas, l: &Look, inner: Rect, p: &Preview, lim: u16, off
         }
     }
 }
-
 
 #[cfg(test)]
 mod tests {
