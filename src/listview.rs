@@ -51,6 +51,7 @@ pub fn thumb(cv: &mut Canvas, x: u16, y: u16, rows: usize, off: usize, total: us
 
 /// The thumb for a text that wraps: as long at every place (`rows` of the pane over `total` lines), where the lines shown (`shown`, from `top0`, the first one counted
 /// from 0) are not always as many as the rows.
+#[allow(clippy::too_many_arguments)]
 pub fn thumb_view(cv: &mut Canvas, x: u16, y: u16, rows: usize, top0: usize, shown: usize, total: usize, st: Style) {
     if rows == 0 || total <= shown.max(1) {
         return;
@@ -62,26 +63,32 @@ pub fn thumb_view(cv: &mut Canvas, x: u16, y: u16, rows: usize, top0: usize, sho
     }
 }
 
-/// How old a time is, as a colour name: today green, this week teal, this month blue, this year purple, older dim.
-pub fn age_colour(t: i64) -> &'static str {
-    let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs() as i64).unwrap_or(0);
-    match now - t {
-        d if d < 86_400 => "green",
-        d if d < 7 * 86_400 => "teal",
-        d if d < 31 * 86_400 => "blue",
-        d if d < 365 * 86_400 => "purple",
-        _ => "comment",
-    }
+/// How old a time is, as a colour name: (younger than this many seconds, colour) in order — today green, this week teal, this month blue,
+/// this year purple — and [`AGE_OLDER`] for the rest. DATA: the commander's Neovim client reads the same table (`lvim-commander-host meta`).
+pub const AGE: [(i64, &str); 4] = [(86_400, "green"), (7 * 86_400, "teal"), (31 * 86_400, "blue"), (365 * 86_400, "purple")];
+/// The colour of a time older than every step of [`AGE`].
+pub const AGE_OLDER: &str = "comment";
+
+/// The colour of a time that is `seconds` old.
+pub fn age_colour_of(seconds: i64) -> &'static str {
+    AGE.iter().find(|(limit, _)| seconds < *limit).map_or(AGE_OLDER, |(_, c)| c)
 }
 
-/// The colour name of a human size (`12K`, `3M`, …): kilobytes green, megabytes yellow, gigabytes and more red, the rest dim.
+/// How old a time is, as a colour name: see [`AGE`].
+pub fn age_colour(t: i64) -> &'static str {
+    let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs() as i64).unwrap_or(0);
+    age_colour_of(now - t)
+}
+
+/// The colour of a human size by its unit: kilobytes green, megabytes yellow, gigabytes and more red. DATA, like [`AGE`].
+pub const SIZE: [(char, &str); 4] = [('K', "green"), ('M', "yellow"), ('G', "red"), ('T', "red")];
+/// The colour of a size with no unit (bytes).
+pub const SIZE_BYTES: &str = "comment";
+
+/// The colour name of a human size (`12K`, `3M`, …): see [`SIZE`].
 pub fn size_colour(human: &str) -> &'static str {
-    match human.chars().last() {
-        Some('K') => "green",
-        Some('M') => "yellow",
-        Some('G') | Some('T') => "red",
-        _ => "comment",
-    }
+    let last = human.chars().last();
+    SIZE.iter().find(|(u, _)| Some(*u) == last).map_or(SIZE_BYTES, |(_, c)| c)
 }
 
 /// The entries of a directory as a panel draws them — an icon, the name in its colour, the size and the date on

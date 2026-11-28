@@ -25,6 +25,8 @@ pub mod pool;
 pub mod printas;
 pub mod provided;
 pub mod syntax;
+pub mod input;
+pub mod termguard;
 pub mod termcolors;
 pub mod theme;
 pub mod util;

@@ -125,7 +125,7 @@ impl Temp {
         use std::sync::atomic::{AtomicU32, Ordering};
         static N: AtomicU32 = AtomicU32::new(0);
         let n = N.fetch_add(1, Ordering::Relaxed);
-        Temp(std::env::temp_dir().join(format!("lvim-media-{}-{n}.{ext}", std::process::id())))
+        Temp(crate::util::scratch().join(format!("media-{n}.{ext}")))
     }
     fn s(&self) -> String {
         self.0.to_string_lossy().into_owned()
@@ -173,7 +173,7 @@ fn svg(path: &Path, max: (u32, u32)) -> Option<Decoded> {
     resvg::render(&tree, resvg::tiny_skia::Transform::from_scale(scale, scale), &mut pm.as_mut());
     let mut px = pm.take();
     // tiny-skia is premultiplied; the terminals want straight alpha
-    for p in px.chunks_exact_mut(4) {
+    for p in px.as_chunks_mut::<4>().0 {
         let a = p[3] as u32;
         if a > 0 && a < 255 {
             for c in &mut p[..3] {
@@ -309,7 +309,7 @@ fn office_pdf(path: &Path) -> Option<(std::path::PathBuf, Temp)> {
     }
     let out = Temp::new("d");
     std::fs::create_dir_all(&out.0).ok()?;
-    let profile = std::env::temp_dir().join(format!("lvim-media-soffice-{}", std::process::id()));
+    let profile = crate::util::scratch().join("soffice");
     let ok = run(
         prog,
         &[
@@ -609,8 +609,8 @@ fn compute(path: &Path, kind: Kind, max: (u32, u32), skip: u32) -> Media {
 pub fn transmit(id: u32, rgba: &[u8], w: u32, h: u32, cols: u16, rows: u16) -> Vec<u8> {
     // as little as possible goes through the terminal (and a multiplexer): RGB when nothing is see-through,
     // zlib-compressed (fast level: the time is in the bytes, not the squeezing)
-    let opaque = rgba.chunks_exact(4).all(|p| p[3] == 255);
-    let raw: Vec<u8> = if opaque { rgba.chunks_exact(4).flat_map(|p| [p[0], p[1], p[2]]).collect() } else { rgba.to_vec() };
+    let opaque = rgba.as_chunks::<4>().0.iter().all(|p| p[3] == 255);
+    let raw: Vec<u8> = if opaque { rgba.as_chunks::<4>().0.iter().flat_map(|p| [p[0], p[1], p[2]]).collect() } else { rgba.to_vec() };
     let fmt = if opaque { 24 } else { 32 };
     let mut z = flate2::write::ZlibEncoder::new(Vec::new(), flate2::Compression::fast());
     let packed = std::io::Write::write_all(&mut z, &raw).ok().and_then(|_| z.finish().ok());
@@ -651,12 +651,14 @@ pub fn transmit_fast(id: u32, rgba: &[u8], w: u32, h: u32, cols: u16, rows: u16)
     if !local_terminal() {
         return transmit(id, rgba, w, h, cols, rows);
     }
-    let opaque = rgba.chunks_exact(4).all(|p| p[3] == 255);
-    let raw: Vec<u8> = if opaque { rgba.chunks_exact(4).flat_map(|p| [p[0], p[1], p[2]]).collect() } else { rgba.to_vec() };
+    let opaque = rgba.as_chunks::<4>().0.iter().all(|p| p[3] == 255);
+    let raw: Vec<u8> = if opaque { rgba.as_chunks::<4>().0.iter().flat_map(|p| [p[0], p[1], p[2]]).collect() } else { rgba.to_vec() };
     let fmt = if opaque { 24 } else { 32 };
-    // kitty takes a temporary file only from a temp directory and with this marker in its name
+    // kitty takes a temporary file only from a temp directory and with this marker in its name (so this one is not in the scratch
+    // directory); it is made new (never through a link left at that name) and private
     let path = std::env::temp_dir().join(format!("lvim-tty-graphics-protocol-{}-{id}.rgb", std::process::id()));
-    if std::fs::write(&path, &raw).is_err() {
+    let _ = std::fs::remove_file(&path);
+    if crate::util::write_new(&path, &raw).is_err() {
         return transmit(id, rgba, w, h, cols, rows);
     }
     let p64 = crate::util::base64(path.to_string_lossy().as_bytes());
@@ -665,8 +667,8 @@ pub fn transmit_fast(id: u32, rgba: &[u8], w: u32, h: u32, cols: u16, rows: u16)
 
 /// Remove the temporary files of [`transmit_fast`] a terminal did not take (on exit).
 pub fn cleanup_files() {
-    // the LibreOffice profile of this process (documents)
-    let _ = std::fs::remove_dir_all(std::env::temp_dir().join(format!("lvim-media-soffice-{}", std::process::id())));
+    // the temporary files and the LibreOffice profile of this process (documents)
+    crate::util::cleanup_scratch();
     let prefix = format!("lvim-tty-graphics-protocol-{}-", std::process::id());
     if let Ok(rd) = std::fs::read_dir(std::env::temp_dir()) {
         for e in rd.flatten() {

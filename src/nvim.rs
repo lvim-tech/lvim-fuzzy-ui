@@ -15,10 +15,49 @@ use rmpv::Value;
 
 use crate::theme::Style;
 
-#[derive(Clone, Debug, Default)]
+/// What a cell of the grid shows: an ASCII character (one byte, no allocation — nearly every cell), or anything wider (a multi-byte
+/// character, or empty: the second half of a double-width one).
+#[derive(Clone, Debug, PartialEq)]
+pub enum CellText {
+    Ascii(u8),
+    Wide(Box<str>),
+}
+
+#[derive(Clone, Debug)]
 pub struct Cell {
-    pub text: String,
+    pub text: CellText,
     pub hl: u64,
+}
+
+impl Default for Cell {
+    fn default() -> Cell {
+        Cell::blank()
+    }
+}
+
+impl Cell {
+    /// A space with no highlight.
+    pub const fn blank() -> Cell {
+        Cell { text: CellText::Ascii(b' '), hl: 0 }
+    }
+
+    /// The cell's text of Neovim (`""` for the right half of a double-width character).
+    pub fn new(text: &str, hl: u64) -> Cell {
+        let text = match text.as_bytes() {
+            [b] if b.is_ascii() => CellText::Ascii(*b),
+            _ => CellText::Wide(text.into()),
+        };
+        Cell { text, hl }
+    }
+
+    /// The text to draw.
+    pub fn as_str(&self) -> &str {
+        match &self.text {
+            // a byte below 128 is one character
+            CellText::Ascii(b) => std::str::from_utf8(std::slice::from_ref(b)).unwrap_or(" "),
+            CellText::Wide(s) => s,
+        }
+    }
 }
 
 #[derive(Default)]
@@ -52,22 +91,11 @@ impl Grid {
     fn resize(&mut self, w: usize, h: usize) {
         self.w = w;
         self.h = h;
-        self.cells = vec![
-            Cell {
-                text: " ".into(),
-                hl: 0
-            };
-            w * h
-        ];
+        self.cells = vec![Cell::blank(); w * h];
     }
 
     fn clear(&mut self) {
-        for c in self.cells.iter_mut() {
-            *c = Cell {
-                text: " ".into(),
-                hl: 0,
-            };
-        }
+        self.cells.fill(Cell::blank());
     }
 
     /// The style of highlight `id` with the default colours filled in.
@@ -80,6 +108,10 @@ impl Grid {
         }
     }
 }
+
+/// The Lua module of the lvim-fuzzy-nvim plugin that shows a file in the Neovim preview (opens the target, marks the query). The one place
+/// its name is written: the preview code, the pool's warm-up and `doctor` all use it.
+pub const PREVIEW_MODULE: &str = "lvim-fuzzy.preview";
 
 /// Where requests go: the embedded Neovim's stdin, or a pooled instance's socket.
 type Writer = Arc<Mutex<BufWriter<Box<dyn Write + Send>>>>;
@@ -167,15 +199,13 @@ impl Nvim {
             && let Ok(stream) = std::os::unix::net::UnixStream::connect(&lease.socket)
             && let (Ok(reader), Ok(shut)) = (stream.try_clone(), stream.try_clone())
         {
-            let n = Self::with_io(None, Box::new(stream), Box::new(reader), wake);
+            let mut n = Self::with_io(None, Box::new(stream), Box::new(reader), wake);
             // the instance started in the pool's directory: relative paths are this finder's
             if let Ok(cwd) = std::env::current_dir() {
                 n.send("nvim_set_current_dir", vec![s(&cwd.to_string_lossy())]);
             }
-            return Ok(Nvim {
-                lease: Some((lease, shut)),
-                ..n
-            });
+            n.lease = Some((lease, shut));
+            return Ok(n);
         }
         Self::embed(program, appname, wake)
     }
@@ -312,7 +342,7 @@ local function view()
 end
 vim.api.nvim_create_augroup("lvim_fuzzy_view", { clear = true })
 vim.api.nvim_create_autocmd({ "WinScrolled", "CursorMoved", "BufWinEnter" }, { group = "lvim_fuzzy_view", callback = view })
-local ok, pv = pcall(require, "lvim-fuzzy.preview")
+local ok, pv = pcall(require, "@PREVIEW_MODULE@")
 if ok and type(pv) == "table" and pv.show then
   pv.show({ path = path, line = line, col = col, text = text, query = query })
   -- paint now: Neovim redraws only when it is idle, and a held key sends the next
@@ -349,7 +379,7 @@ pcall(vim.cmd, "redraw")
 view()
 "#;
         let params = Value::Array(vec![
-            s(CODE),
+            s(&CODE.replace("@PREVIEW_MODULE@", PREVIEW_MODULE)),
             Value::Array(vec![
                 s(path),
                 Value::from(line as u64),
@@ -395,17 +425,28 @@ view()
     }
 
     pub fn quit(mut self) {
+        self.shutdown();
+    }
+
+    /// End the instance: the child is killed and reaped; a pooled one is detached and given back (the pool cleans or ends it).
+    /// Done once, whichever of `quit` and `Drop` comes first.
+    fn shutdown(&mut self) {
         if let Some(mut child) = self.child.take() {
-            self.send("nvim_command", vec![s("qa!")]);
             let _ = child.kill();
             let _ = child.wait();
         }
-        // a pooled instance: detach and give it back (the pool cleans or ends it)
         if let Some((lease, sock)) = self.lease.take() {
             self.send("nvim_ui_detach", vec![]);
             let _ = sock.shutdown(std::net::Shutdown::Both);
             drop(lease);
         }
+    }
+}
+
+impl Drop for Nvim {
+    /// A finder that ends any other way (an error, a panic unwinding) leaves no Neovim behind.
+    fn drop(&mut self) {
+        self.shutdown();
     }
 }
 
@@ -501,17 +542,15 @@ fn handle(msg: &Value, grid: &Arc<Mutex<Grid>>, wake: &Sender<()>) {
                     let w = g.w;
                     for cell in cells {
                         let Some(c) = cell.as_array() else { continue };
-                        let text = c.first().and_then(Value::as_str).unwrap_or(" ").to_string();
+                        let text = c.first().and_then(Value::as_str).unwrap_or(" ");
+                        let hl_of = |hl| Cell::new(text, hl);
                         if let Some(h) = c.get(1).and_then(Value::as_u64) {
                             hl = h;
                         }
                         let rep = c.get(2).and_then(Value::as_u64).unwrap_or(1) as usize;
                         for _ in 0..rep {
                             if col < w {
-                                g.cells[row * w + col] = Cell {
-                                    text: text.clone(),
-                                    hl,
-                                };
+                                g.cells[row * w + col] = hl_of(hl);
                             }
                             col += 1;
                         }
@@ -635,6 +674,58 @@ pub fn parse_target(s: &str) -> (String, usize, usize) {
 mod tests {
     use super::*;
 
+    /// Counts the allocations of the process (only the ignored test below looks at it).
+    struct Counting;
+    static ALLOCS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+    // SAFETY: every call goes to the system allocator unchanged; only a counter is added.
+    unsafe impl std::alloc::GlobalAlloc for Counting {
+        unsafe fn alloc(&self, l: std::alloc::Layout) -> *mut u8 {
+            ALLOCS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            unsafe { std::alloc::System.alloc(l) }
+        }
+        unsafe fn dealloc(&self, p: *mut u8, l: std::alloc::Layout) {
+            unsafe { std::alloc::System.dealloc(p, l) }
+        }
+    }
+    #[global_allocator]
+    static COUNT: Counting = Counting;
+
+    /// 1 000 frames of a 200 x 50 grid of ASCII cells allocate next to nothing (a `String` per cell was 10 000 per frame):
+    /// `cargo test -- --ignored grid_frames`
+    #[test]
+    #[ignore]
+    fn grid_frames_do_not_allocate_per_cell() {
+        let mut g = Grid::default();
+        g.resize(200, 50);
+        let before = ALLOCS.load(std::sync::atomic::Ordering::Relaxed);
+        for f in 0..1000usize {
+            for (i, c) in g.cells.iter_mut().enumerate() {
+                *c = Cell::new(if (i + f) % 7 == 0 { "x" } else { " " }, (i % 5) as u64);
+            }
+            g.clear();
+        }
+        let used = ALLOCS.load(std::sync::atomic::Ordering::Relaxed) - before;
+        assert!(used < 50, "{used} allocations in 1000 frames");
+    }
+
+    /// An ASCII cell holds its byte (no allocation); anything else holds its text, and the right half of a wide character is empty.
+    #[test]
+    fn a_cell_is_a_byte_or_a_text() {
+        assert_eq!(Cell::new("a", 3).text, CellText::Ascii(b'a'));
+        assert_eq!(Cell::new("a", 3).as_str(), "a");
+        assert!(matches!(Cell::new("é", 0).text, CellText::Wide(_)));
+        assert_eq!(Cell::new("é", 0).as_str(), "é");
+        assert_eq!(Cell::new("", 0).as_str(), "");
+        assert_eq!(Cell::blank().as_str(), " ");
+        // a grid is cleared and resized with blanks
+        let mut g = Grid::default();
+        g.resize(3, 2);
+        assert!(g.cells.iter().all(|c| c.as_str() == " "));
+        g.cells[0] = Cell::new("x", 1);
+        g.clear();
+        assert_eq!(g.cells[0].as_str(), " ");
+    }
+
     /// Needs `nvim` on PATH: cargo test -- --ignored
     #[test]
     #[ignore]
@@ -647,8 +738,8 @@ mod tests {
         loop {
             let _ = rx.recv_timeout(std::time::Duration::from_millis(100));
             let g = n.grid.lock().unwrap();
-            let text: String = g.cells.iter().map(|c| c.text.as_str()).collect();
-            if text.contains("lvim-fuzzy-cli") {
+            let text: String = g.cells.iter().map(|c| c.as_str()).collect();
+            if text.contains("lvim-fuzzy-ui") {
                 assert_eq!((g.w, g.h), (60, 8));
                 break;
             }

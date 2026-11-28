@@ -1,6 +1,6 @@
 //! Carrying out what the OPEN plugin (`lvim-fuzzy-plugin-open`) decided. The plugin chooses which program opens a file
 //! from its configuration and answers with an `open` instruction; a tool (lvc, lfz, the Neovim picker through
-//! `lvim-fuzzy-cli open --resolve`) reads it with [`parse`] and does it: start its editor, or [`spawn_detached`] the
+//! `lvim-plugin host`) reads it with [`parse`] and does it: start its editor, or [`spawn_detached`] the
 //! command. Nothing here decides anything.
 //!
 //! The answer (a JSON array of instructions, the first `open` or `pass` counts):

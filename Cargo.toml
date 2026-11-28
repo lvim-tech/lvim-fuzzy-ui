@@ -5,13 +5,15 @@ edition = "2024"
 license = "BSD-3-Clause"
 description = "The lvim look for terminal programs: themes, canvas, icons, file and Neovim previews, the warm Neovim pool"
 repository = "https://github.com/lvim-tech/lvim-fuzzy-ui"
-rust-version = "1.85"
+rust-version = "1.88"
 
 [dependencies]
 crossterm = { version = "0.29", features = ["use-dev-tty"] }
 rmpv = "1.3"
 toml = "0.9"
 libc = "0.2"
+# SIGWINCH into a pipe, so the input thread wakes for a resize without polling (crossterm already depends on it)
+signal-hook = "0.3"
 syntect = { version = "5", default-features = false, features = ["default-syntaxes", "parsing", "regex-fancy"] }
 unicode-width = "0.2"
 # Material file icons as images (kitty unicode placeholders): SVG → RGBA, and the icon theme's manifest

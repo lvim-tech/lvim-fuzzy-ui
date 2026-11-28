@@ -393,11 +393,15 @@ impl Pool {
 
     fn serve_conn(self: &Arc<Self>, conn: UnixStream) {
         let Ok(mut w) = conn.try_clone() else { return };
+        // a client that connects and says nothing does not hold a thread of the pool for ever: the first line comes in 5 s
+        let _ = conn.set_read_timeout(Some(Duration::from_secs(5)));
         let mut r = BufReader::new(conn);
         let mut line = String::new();
         if r.read_line(&mut line).is_err() {
             return;
         }
+        // (a lease below waits for the finder to close the connection: no limit then)
+        let _ = w.set_read_timeout(None);
         let line = line.trim_end_matches(['\n', '\r']);
         let (cmd, arg) = line.split_once('\t').unwrap_or((line, ""));
         match cmd {
@@ -486,7 +490,7 @@ fn quiet(rx: &std::sync::mpsc::Receiver<()>, deadline: Instant, need_redraw: boo
 /// grammar, through a throwaway buffer), then leave one empty buffer, so the
 /// finder's first frame is its file — not the start screen.
 const PREPARE: &str = r#"
-pcall(require, "lvim-fuzzy.preview")
+pcall(require, "@PREVIEW_MODULE@")
 for _, ft in ipairs({ "lua", "markdown", "json", "toml", "yaml", "sh", "python", "rust", "javascript", "typescript" }) do
   local b = vim.api.nvim_create_buf(false, true)
   pcall(vim.api.nvim_set_option_value, "filetype", ft, { buf = b })
@@ -532,7 +536,7 @@ fn warm_conn(conn: UnixStream, deadline: Instant) -> bool {
     // 2. what the first preview would load (the preview module, the commonest file types), and
     // the start screen replaced by an empty buffer: a finder attaching must not see the dashboard
     // first (it flashed in the preview) nor wait for the dashboard to close
-    if rpc(&mut w, 3, "nvim_exec_lua", vec![s(PREPARE), Value::Array(vec![])]).is_err() {
+    if rpc(&mut w, 3, "nvim_exec_lua", vec![s(&PREPARE.replace("@PREVIEW_MODULE@", crate::nvim::PREVIEW_MODULE)), Value::Array(vec![])]).is_err() {
         return false;
     }
     let ok = quiet(&rx, Instant::now() + WARM_MAX, false);
@@ -591,14 +595,28 @@ fn nvim_config_dir(appname: Option<&str>) -> PathBuf {
     base.join(appname.unwrap_or("nvim"))
 }
 
+/// The sockets of pools that are gone (`nvim-<pid>-<id>.sock`, the pid being the pool's): a killed pool leaves them behind.
+fn remove_dead_sockets(dir: &Path) {
+    let Ok(rd) = std::fs::read_dir(dir) else { return };
+    for e in rd.flatten() {
+        let name = e.file_name().to_string_lossy().into_owned();
+        let pid = name.strip_prefix("nvim-").and_then(|r| r.split('-').next()).and_then(|p| p.parse::<i32>().ok());
+        if let Some(pid) = pid
+            && name.ends_with(".sock")
+            // SAFETY: signal 0 only asks whether the process exists
+            && unsafe { libc::kill(pid, 0) } != 0
+            && std::io::Error::last_os_error().raw_os_error() == Some(libc::ESRCH)
+        {
+            let _ = std::fs::remove_file(e.path());
+        }
+    }
+}
+
 /// `lvim-fuzzy-cli pool`: run the pool in the foreground until stopped.
 pub fn serve(nvim: &str, appname: Option<&str>, config: Option<&Path>) -> Result<i32, String> {
     let dir = dir();
-    std::fs::create_dir_all(&dir).map_err(|e| format!("cannot create {}: {e}", dir.display()))?;
-    {
-        use std::os::unix::fs::PermissionsExt;
-        let _ = std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o700));
-    }
+    crate::util::private_dir(&dir).map_err(|e| format!("cannot use {}: {e}", dir.display()))?;
+    remove_dead_sockets(&dir);
     let ctl = control_path(&dir);
     if UnixStream::connect(&ctl).is_ok() {
         return Err(format!("a pool already runs ({})", ctl.display()));
@@ -645,10 +663,10 @@ pub fn serve(nvim: &str, appname: Option<&str>, config: Option<&Path>) -> Result
                     std::process::exit(0);
                 }
                 tick += 1;
-                if tick % 2 == 0 {
+                if tick.is_multiple_of(2) {
                     p.reap();
                 }
-                if tick % 10 == 0 {
+                if tick.is_multiple_of(10) {
                     let now = fingerprint(&roots);
                     if now != print {
                         print = now;

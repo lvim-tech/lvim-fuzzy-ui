@@ -602,6 +602,21 @@ pub fn icon(path: &str, is_dir: bool) -> (&'static str, &'static str) {
     FILE
 }
 
+/// The field of a search prompt: a tint of the badge's own background, paler than it.
+pub fn search_field(l: &Look) -> Style {
+    // (half way back to the field's own tint: paler than the badge)
+    let bg = match (l.prompt.bg, l.input.bg) {
+        (Some(p), Some(i)) => Some(blend(p, i, 0.5)),
+        (p, i) => p.or(i),
+    };
+    Style { bg, ..l.input }
+}
+
+/// The badge of a search prompt (the magnifier): on the field's own background — the bar is one tone, the magnifier only differs by its colour.
+pub fn search_badge_style(l: &Look) -> Style {
+    Style { bg: search_field(l).bg, ..l.prompt }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -700,19 +715,4 @@ count = { fg = "#5b7d7e" }
         assert_eq!(t.role("panel").bg, None); // the terminal's own background
         assert!(Theme::list().contains(&"terminal".to_string()));
     }
-}
-
-/// The field of a search prompt: a tint of the badge's own background, paler than it.
-pub fn search_field(l: &Look) -> Style {
-    // (half way back to the field's own tint: paler than the badge)
-    let bg = match (l.prompt.bg, l.input.bg) {
-        (Some(p), Some(i)) => Some(blend(p, i, 0.5)),
-        (p, i) => p.or(i),
-    };
-    Style { bg, ..l.input }
-}
-
-/// The badge of a search prompt (the magnifier): on the field's own background — the bar is one tone, the magnifier only differs by its colour.
-pub fn search_badge_style(l: &Look) -> Style {
-    Style { bg: search_field(l).bg, ..l.prompt }
 }
