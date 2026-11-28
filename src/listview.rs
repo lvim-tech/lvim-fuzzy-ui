@@ -15,6 +15,53 @@ pub fn tint(l: &Look, name: &str, fallback: Style, bg: Option<crossterm::style::
     Style { fg: l.theme.color(name).or(fallback.fg), bg, ..fallback }
 }
 
+/// The bar over a preview's text, in the colour of the search bar: which lines are shown (from – to / all) and, at the right end, how to scroll
+/// (only when there is something to scroll and room for it); an empty file or folder says `No data`. `r` is the bar's row (one high); the text
+/// is the rows under it.
+pub fn scroll_bar(cv: &mut Canvas, l: &Look, r: Rect, off: usize, total: usize, visible: usize) {
+    let field = crate::lvim::search_field(l);
+    cv.fill(Rect { x: r.x, y: r.y, w: r.w, h: 1 }, field);
+    let left = if total == 0 { " 0 / 0".to_string() } else { format!(" {}–{} / {}", off + 1, (off + visible).min(total), total) };
+    let lim = r.x + r.w;
+    cv.put(r.x, r.y, &left, field, lim);
+    if total > visible {
+        let hint = "C-d C-u to scroll ";
+        let hw = str_width(hint) as u16;
+        if r.w > hw + str_width(&left) as u16 + 1 {
+            cv.put(lim - hw, r.y, hint, field, lim);
+        }
+    }
+    if total == 0 {
+        cv.put(r.x, r.y + 1, " No data", l.count, lim);
+    }
+}
+
+/// The thumb of a scrollbar: one column at `x`, `rows` high from `y`, for `total` rows of which `rows` show from `off`. Nothing when everything shows.
+pub fn thumb(cv: &mut Canvas, x: u16, y: u16, rows: usize, off: usize, total: usize, st: Style) {
+    if rows == 0 || total <= rows {
+        return;
+    }
+    let bar = ((rows * rows) / total).max(1);
+    let max_off = total - rows;
+    let pos = off.min(max_off) * (rows - bar) / max_off;
+    for k in 0..bar {
+        cv.put(x, y + (pos + k) as u16, "┃", st, x + 1);
+    }
+}
+
+/// The thumb for a text that wraps: as long at every place (`rows` of the pane over `total` lines), where the lines shown (`shown`, from `top0`, the first one counted
+/// from 0) are not always as many as the rows.
+pub fn thumb_view(cv: &mut Canvas, x: u16, y: u16, rows: usize, top0: usize, shown: usize, total: usize, st: Style) {
+    if rows == 0 || total <= shown.max(1) {
+        return;
+    }
+    let bar = ((rows * rows) / total).max(1).min(rows);
+    let pos = (top0 * (rows - bar) / (total - shown)).min(rows - bar);
+    for k in 0..bar {
+        cv.put(x, y + (pos + k) as u16, "┃", st, x + 1);
+    }
+}
+
 /// How old a time is, as a colour name: today green, this week teal, this month blue, this year purple, older dim.
 pub fn age_colour(t: i64) -> &'static str {
     let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs() as i64).unwrap_or(0);
